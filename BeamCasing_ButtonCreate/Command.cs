@@ -36,22 +36,22 @@ namespace BeamCasing_ButtonCreate
 
             Family RC_Cast;
 
-
+            //載入元件檔
             using (Transaction tx = new Transaction(doc))
             {
                 tx.Start("載入檔案測試");
 
                 RC_Cast = new BeamCast().BeamCastSymbol(doc);
-                MessageBox.Show($"找到的元件名稱為:{RC_Cast.Name}");
+                //MessageBox.Show($"找到的元件名稱為:{RC_Cast.Name}");
                 tx.Commit();
             }
 
+            //根據不同管徑選擇不同大小的套管
             using (Transaction tx = new Transaction(doc))
             {
                 tx.Start("尋找元件");
                 Element CastSymbol = new BeamCast().findRC_CastSymbol(doc, RC_Cast, pickPipe);
-                MessageBox.Show($"找到的元件名稱為:{CastSymbol.Name}");
-                //MessageBox.Show("執行成功!");
+                //MessageBox.Show($"找到的元件名稱為:{CastSymbol.Name}");
                 tx.Commit();
             }
 
@@ -63,7 +63,7 @@ namespace BeamCasing_ButtonCreate
             LogicalAndFilter andFilter = new LogicalAndFilter(instanceFilter, linkFilter);
             FilteredElementCollector linked_BeamCollector = new FilteredElementCollector(doc);
             linked_BeamCollector = linked_BeamCollector.WherePasses(andFilter);
-            MessageBox.Show($"連結模型中總共有{linked_BeamCollector.Count()}個族群實例");
+            //MessageBox.Show($"連結模型中總共有{linked_BeamCollector.Count()}個外部參考族群實例");
 
             //尋找連結模型中的元素_方法2
             IList<FamilyInstance> CastList = new List<FamilyInstance>(); //創造一個裝每次被創造出來的familyinstance的容器，用來以bounding box計算bop&top
@@ -77,10 +77,9 @@ namespace BeamCasing_ButtonCreate
                     Debug.Print(string.Format("Link docment '{0}':", d.Title));
 
                     FilteredElementCollector beams = new FilteredElementCollector(d).OfClass(typeof(Instance)).OfCategory(BuiltInCategory.OST_StructuralFraming);
-                    MessageBox.Show($"連結模型中總共有{beams.Count()}個樑實例");
+                    //MessageBox.Show($"連結模型中總共有{beams.Count()}個樑實例");
 
                     //抓取樑實例，並與線取交集
-                    //先測試，如果管和樑交集，產生一條model line
                     if (beams.Count() > 0)
                     {
                         foreach (Element e in beams)
@@ -88,6 +87,9 @@ namespace BeamCasing_ButtonCreate
                             Options geomOptions = new Options();
                             geomOptions.ComputeReferences = true;
                             geomOptions.DetailLevel = ViewDetailLevel.Fine;
+
+                            //GeometryElement類中包含了構成該園件的所有幾何元素，線、邊、面、體-->這些在Revit中被歸為GeometryObject類
+                            //因此要用foreach找出其中屬於solid的部分
                             GeometryElement geoElement = e.get_Geometry(geomOptions);
                             foreach (GeometryObject obj in geoElement)
                             {
@@ -184,6 +186,32 @@ namespace BeamCasing_ButtonCreate
                                             //        break;
                                             //}
 
+                                            //設定BOP、TOP
+                                            if (intersectCount > 0)
+                                            {
+                                                Solid tempBeam = solid; //如果樑有切割到，則對樑進行計算
+                                                XYZ tempBeam_Max = tempBeam.GetBoundingBox().Max;
+                                                XYZ tempBeam_Min = tempBeam.GetBoundingBox().Min;
+
+                                                XYZ instance_Max = instance.get_BoundingBox(null).Max;
+                                                XYZ instance_Min = instance.get_BoundingBox(null).Min;
+                                                double instanceHeight = instance_Max.Z - instance_Min.Z; //穿樑套管的寬度
+
+                                                XYZ tempCenter_Up = new XYZ(tempCenter.X, tempCenter.Y, tempCenter.Z + 100);
+                                                XYZ tempCenter_Dn = new XYZ(tempCenter.X, tempCenter.Y, tempCenter.Z - 100);
+                                                Curve vertiaclLine = Line.CreateBound(tempCenter_Dn, tempCenter_Up);
+
+                                                SolidCurveIntersection castIntersect = solid.IntersectWithCurve(vertiaclLine, options);
+                                                Curve castIntersect_Crv = castIntersect.GetCurveSegment(0);
+                                                XYZ intersect_DN = castIntersect_Crv.GetEndPoint(0);
+                                                XYZ intersect_UP = castIntersect_Crv.GetEndPoint(1);
+                                                double TOP= intersect_UP.Z- instance_Max.Z;
+                                                double BOP =instance_Min.Z-intersect_DN.Z;
+
+                                                instance.LookupParameter("TOP").Set(TOP);
+                                                instance.LookupParameter("BOP").Set(BOP);
+                                            }
+
 
                                             tx.Commit();
                                         }
@@ -194,7 +222,8 @@ namespace BeamCasing_ButtonCreate
                     }
                 }
             }
-            MessageBox.Show($"共交集{intersectCount}處，總交集長度為{intersectLength * 30.48}");
+            //MessageBox.Show($"共交集{intersectCount}處，總交集長度為{intersectLength * 30.48}");
+            MessageBox.Show("穿樑套管放置完成!!");
             return Result.Succeeded;
         }
 
@@ -332,12 +361,15 @@ namespace BeamCasing_ButtonCreate
                 targetFamilySymbol.Activate();
                 return targetFamilySymbol;
             }
-
-            //找到管與連結模型的交集(最好是線資訊，可以計算長度)，並以線的中點為基礎，創造穿樑套管，MEP Curve和Beam Solid的交集
-            //先建立一多個篩選器，將revit連結模型中的「樑」篩選出來
-
         }
 
+        public double faceValue_Z(Face face)
+        {
+            UV param =new UV( 0.5,0.5);
+            XYZ center = face.Evaluate(param);
+
+            return center.Z;
+        }
         //建立管過濾器
         public class PipeSelectionFilter : Autodesk.Revit.UI.Selection.ISelectionFilter
         {
