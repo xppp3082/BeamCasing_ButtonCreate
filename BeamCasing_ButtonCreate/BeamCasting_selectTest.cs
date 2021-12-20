@@ -39,7 +39,7 @@ namespace BeamCasing_ButtonCreate
                 List<Element> pickBeams = new List<Element>(); //選取一個容器放置外參樑
                 ISelectionFilter beamFilter = new BeamsLinkedSelectedFilter(doc);
                 IList<Reference> refElems_Linked = uidoc.Selection.PickObjects(ObjectType.LinkedElement, beamFilter, $"請選擇穿過的樑，可多選");
-                foreach(Reference refer in refElems_Linked)
+                foreach (Reference refer in refElems_Linked)
                 {
                     RevitLinkInstance revitLinkInstance = doc.GetElement(refer) as RevitLinkInstance;
                     Autodesk.Revit.DB.Document docLink = revitLinkInstance.GetLinkDocument();
@@ -95,171 +95,175 @@ namespace BeamCasing_ButtonCreate
                 //        //抓取樑實例，並與線取交集
                 //        if (beams.Count() > 0)
                 //        {
-                            foreach (Element e in pickBeams)
+                foreach (Element e in pickBeams)
+                {
+                    Options geomOptions = new Options();
+                    geomOptions.ComputeReferences = true;
+                    geomOptions.DetailLevel = ViewDetailLevel.Fine;
+
+                    //GeometryElement類中包含了構成該園件的所有幾何元素，線、邊、面、體-->這些在Revit中被歸為GeometryObject類
+                    //因此要用foreach找出其中屬於solid的部分
+                    GeometryElement geoElement = e.get_Geometry(geomOptions);
+                    foreach (GeometryObject obj in geoElement)
+                    {
+                        Solid solid = obj as Solid;
+                        if (null != solid)
+                        {
+                            SolidCurveIntersectionOptions options = new SolidCurveIntersectionOptions();
+                            LocationCurve locationCurve = pickPipe.Location as LocationCurve;
+                            Curve pipeCurve = locationCurve.Curve;
+                            SolidCurveIntersection intersection = solid.IntersectWithCurve(pipeCurve, options);
+                            intersectCount = intersection.SegmentCount;
+                            totalIntersectCount += intersectCount;
+                            List<Element> castsInThisBeam = otherCast(doc, solid);
+                            MessageBox.Show($"在這根樑中有{castsInThisBeam.Count()}個套管了");
+                            //if(套管數>0){在instance被產出之後，針對每個套管和instance進行計算，如果有水平向距離小於穿樑原則的，則穿樑失敗}
+                            //在做這件事時需要把所有穿樑套管放在同一個平面處理，進行距離計算
+                            for (int i = 0; i < intersectCount; i++)
                             {
-                                Options geomOptions = new Options();
-                                geomOptions.ComputeReferences = true;
-                                geomOptions.DetailLevel = ViewDetailLevel.Fine;
+                                intersectLength += intersection.GetCurveSegment(i).Length;
+                                Curve tempCurve = intersection.GetCurveSegment(i);
+                                XYZ tempCenter = tempCurve.Evaluate(0.5, true);
+                                FamilySymbol CastSymbol2 = new BeamCast().findRC_CastSymbol(doc, RC_Cast, pickPipe);
+                                MEPCurve mepCurve = pickPipe as MEPCurve;
+                                Level castLevel = mepCurve.ReferenceLevel;
 
-                                //GeometryElement類中包含了構成該園件的所有幾何元素，線、邊、面、體-->這些在Revit中被歸為GeometryObject類
-                                //因此要用foreach找出其中屬於solid的部分
-                                GeometryElement geoElement = e.get_Geometry(geomOptions);
-                                foreach (GeometryObject obj in geoElement)
+                                //開始放置穿樑套管
+                                using (Transaction tx = new Transaction(doc))
                                 {
-                                    Solid solid = obj as Solid;
-                                    if (null != solid)
+                                    tx.Start("創造穿樑套管");
+                                    //創建穿樑套管
+                                    instance = doc.Create.NewFamilyInstance(tempCenter, CastSymbol2, castLevel, StructuralType.NonStructural);
+
+                                    //調整長度與高度
+                                    instance.LookupParameter("長度").Set(intersection.GetCurveSegment(i).Length + 2 / 30.48); //套管前後加兩公分
+                                    Level topLevel = doc.GetElement(instance.LookupParameter("頂部樓層").AsElementId()) as Level;
+                                    Level baseLevel = doc.GetElement(instance.LookupParameter("基準樓層").AsElementId()) as Level;
+                                    double floorHeigth = topLevel.Elevation - baseLevel.Elevation;
+                                    double toMove2 = tempCenter.Z - topLevel.Elevation + pickPipe.LookupParameter("直徑").AsDouble();
+                                    double toMove = pickPipe.LookupParameter("偏移").AsDouble() - floorHeigth;
+                                    instance.LookupParameter("頂部偏移").Set(toMove2);
+
+                                    //旋轉角度
+                                    XYZ axisPt1 = new XYZ(tempCenter.X, tempCenter.Y, tempCenter.Z);
+                                    XYZ axisPt2 = new XYZ(tempCenter.X, tempCenter.Y, tempCenter.Z + 1);
+                                    XYZ basePoint = new XYZ(0, tempCenter.Y, 0);
+                                    Line Axis = Line.CreateBound(axisPt1, axisPt2);
+
+                                    XYZ projectStart = intersection.GetCurveSegment(i).GetEndPoint(0);
+                                    XYZ projectEnd = intersection.GetCurveSegment(i).GetEndPoint(1);
+                                    XYZ projectEndAdj = new XYZ(projectEnd.X, projectEnd.Y, projectStart.Z);
+
+                                    //Line intersectLine = intersection.GetCurveSegment(i) as Line;
+                                    Line intersectProject = Line.CreateBound(projectStart, projectEndAdj);
+                                    double degree = 0.0;
+                                    degree = basePoint.AngleTo(intersectProject.Direction);
+                                    instance.Location.Rotate(Axis, degree);
+
+                                    //寫入系統別
+                                    string pipeSystem = pickPipe.LookupParameter("系統類型").AsValueString();
+                                    if (pipeSystem.Contains("P 排水"))
                                     {
-                                        SolidCurveIntersectionOptions options = new SolidCurveIntersectionOptions();
-                                        LocationCurve locationCurve = pickPipe.Location as LocationCurve;
-                                        Curve pipeCurve = locationCurve.Curve;
-                                        SolidCurveIntersection intersection = solid.IntersectWithCurve(pipeCurve, options);
-                                        intersectCount = intersection.SegmentCount;
-                                        totalIntersectCount += intersectCount;
+                                        instance.LookupParameter("系統別").Set("P");
+                                    }
+                                    else if (pipeSystem.Contains("P 通風"))
+                                    {
+                                        instance.LookupParameter("系統別").Set("P");
+                                    }
+                                    else if (pipeSystem.Contains("E 電氣"))
+                                    {
+                                        instance.LookupParameter("系統別").Set("E");
+                                    }
+                                    else if (pipeSystem.Contains("M 空調水"))
+                                    {
+                                        instance.LookupParameter("系統別").Set("A");
+                                    }
+                                    else if (pipeSystem.Contains("F 消防"))
+                                    {
+                                        instance.LookupParameter("系統別").Set("F");
+                                    }
+                                    else if (pipeSystem.Contains("W 給水"))
+                                    {
+                                        instance.LookupParameter("系統別").Set("W");
+                                    }
+                                    else if (pipeSystem.Contains("G 瓦斯"))
+                                    {
+                                        instance.LookupParameter("系統別").Set("GA");
+                                    }
+                                    else
+                                    {
+                                        instance.LookupParameter("系統別").Set("未指定");
+                                    }
 
-                                        for (int i = 0; i < intersectCount; i++)
+                                    ////switch的版本
+                                    //switch (pipeSystem)
+                                    //{
+                                    //    case "P 排水-汙水(SP)":
+                                    //        instance.LookupParameter("系統別").Set("P");
+                                    //        break;
+                                    //    case "P 排水-廢水(WP)":
+                                    //        instance.LookupParameter("系統別").Set("P");
+                                    //        break;
+                                    //}
+
+                                    //設定BOP、TOP
+                                    if (intersectCount > 0)
+                                    {
+                                        Solid tempBeam = solid; //如果樑有切割到，則對樑進行計算
+                                        XYZ tempBeam_Max = tempBeam.GetBoundingBox().Max;
+                                        XYZ tempBeam_Min = tempBeam.GetBoundingBox().Min;
+
+                                        XYZ instance_Max = instance.get_BoundingBox(null).Max;
+                                        XYZ instance_Min = instance.get_BoundingBox(null).Min;
+                                        double instanceHeight = instance_Max.Z - instance_Min.Z; //穿樑套管的高度
+
+                                        //針對每個實體
+                                        XYZ tempCenter_Up = new XYZ(tempCenter.X, tempCenter.Y, tempCenter.Z + 100);
+                                        XYZ tempCenter_Dn = new XYZ(tempCenter.X, tempCenter.Y, tempCenter.Z - 100);
+                                        Curve vertiaclLine = Line.CreateBound(tempCenter_Dn, tempCenter_Up);
+
+                                        SolidCurveIntersection castIntersect = solid.IntersectWithCurve(vertiaclLine, options);
+                                        Curve castIntersect_Crv = castIntersect.GetCurveSegment(0);
+                                        XYZ intersect_DN = castIntersect_Crv.GetEndPoint(0);
+                                        XYZ intersect_UP = castIntersect_Crv.GetEndPoint(1);
+                                        double TOP = intersect_UP.Z - instance_Max.Z;
+                                        double BOP = instance_Min.Z - intersect_DN.Z;
+
+                                        instance.LookupParameter("TOP").Set(TOP);
+                                        instance.LookupParameter("BOP").Set(BOP);
+
+                                        //設定1/4的穿樑原則警告
+                                        double beamHeight = castIntersect_Crv.Length; //樑在那個斷面的高度
+                                        double alertValue = beamHeight / 4;
+                                        //MessageBox.Show($"{alertValue}");
+                                        if (TOP < alertValue)
                                         {
-                                            intersectLength += intersection.GetCurveSegment(i).Length;
-                                            Curve tempCurve = intersection.GetCurveSegment(i);
-                                            XYZ tempCenter = tempCurve.Evaluate(0.5, true);
-                                            FamilySymbol CastSymbol2 = new BeamCast().findRC_CastSymbol(doc, RC_Cast, pickPipe);
-                                            MEPCurve mepCurve = pickPipe as MEPCurve;
-                                            Level castLevel = mepCurve.ReferenceLevel;
-
-                                            //開始放置穿樑套管
-                                            using (Transaction tx = new Transaction(doc))
-                                            {
-                                                tx.Start("創造穿樑套管");
-                                                //創建穿樑套管
-                                                instance = doc.Create.NewFamilyInstance(tempCenter, CastSymbol2, castLevel, StructuralType.NonStructural);
-
-                                                //調整長度與高度
-                                                instance.LookupParameter("長度").Set(intersection.GetCurveSegment(i).Length + 2 / 30.48); //套管前後加兩公分
-                                                Level topLevel = doc.GetElement(instance.LookupParameter("頂部樓層").AsElementId()) as Level;
-                                                Level baseLevel = doc.GetElement(instance.LookupParameter("基準樓層").AsElementId()) as Level;
-                                                double floorHeigth = topLevel.Elevation - baseLevel.Elevation;
-                                                double toMove2 = tempCenter.Z - topLevel.Elevation + pickPipe.LookupParameter("直徑").AsDouble();
-                                                double toMove = pickPipe.LookupParameter("偏移").AsDouble() - floorHeigth;
-                                                instance.LookupParameter("頂部偏移").Set(toMove2);
-
-                                                //旋轉角度
-                                                XYZ axisPt1 = new XYZ(tempCenter.X, tempCenter.Y, tempCenter.Z);
-                                                XYZ axisPt2 = new XYZ(tempCenter.X, tempCenter.Y, tempCenter.Z + 1);
-                                                XYZ basePoint = new XYZ(0, tempCenter.Y, 0);
-                                                Line Axis = Line.CreateBound(axisPt1, axisPt2);
-
-                                                XYZ projectStart = intersection.GetCurveSegment(i).GetEndPoint(0);
-                                                XYZ projectEnd = intersection.GetCurveSegment(i).GetEndPoint(1);
-                                                XYZ projectEndAdj = new XYZ(projectEnd.X, projectEnd.Y, projectStart.Z);
-
-                                                //Line intersectLine = intersection.GetCurveSegment(i) as Line;
-                                                Line intersectProject = Line.CreateBound(projectStart, projectEndAdj);
-                                                double degree = 0.0;
-                                                degree = basePoint.AngleTo(intersectProject.Direction);
-                                                instance.Location.Rotate(Axis, degree);
-
-                                                //寫入系統別
-                                                string pipeSystem = pickPipe.LookupParameter("系統類型").AsValueString();
-                                                if (pipeSystem.Contains("P 排水"))
-                                                {
-                                                    instance.LookupParameter("系統別").Set("P");
-                                                }
-                                                else if (pipeSystem.Contains("P 通風"))
-                                                {
-                                                    instance.LookupParameter("系統別").Set("P");
-                                                }
-                                                else if (pipeSystem.Contains("E 電氣"))
-                                                {
-                                                    instance.LookupParameter("系統別").Set("E");
-                                                }
-                                                else if (pipeSystem.Contains("M 空調水"))
-                                                {
-                                                    instance.LookupParameter("系統別").Set("A");
-                                                }
-                                                else if (pipeSystem.Contains("F 消防"))
-                                                {
-                                                    instance.LookupParameter("系統別").Set("F");
-                                                }
-                                                else if (pipeSystem.Contains("W 給水"))
-                                                {
-                                                    instance.LookupParameter("系統別").Set("W");
-                                                }
-                                                else if (pipeSystem.Contains("G 瓦斯"))
-                                                {
-                                                    instance.LookupParameter("系統別").Set("GA");
-                                                }
-                                                else
-                                                {
-                                                    instance.LookupParameter("系統別").Set("未指定");
-                                                }
-
-                                                ////switch的版本
-                                                //switch (pipeSystem)
-                                                //{
-                                                //    case "P 排水-汙水(SP)":
-                                                //        instance.LookupParameter("系統別").Set("P");
-                                                //        break;
-                                                //    case "P 排水-廢水(WP)":
-                                                //        instance.LookupParameter("系統別").Set("P");
-                                                //        break;
-                                                //}
-
-                                                //設定BOP、TOP
-                                                if (intersectCount > 0)
-                                                {
-                                                    Solid tempBeam = solid; //如果樑有切割到，則對樑進行計算
-                                                    XYZ tempBeam_Max = tempBeam.GetBoundingBox().Max;
-                                                    XYZ tempBeam_Min = tempBeam.GetBoundingBox().Min;
-
-                                                    XYZ instance_Max = instance.get_BoundingBox(null).Max;
-                                                    XYZ instance_Min = instance.get_BoundingBox(null).Min;
-                                                    double instanceHeight = instance_Max.Z - instance_Min.Z; //穿樑套管的高度
-
-                                                    //針對每個實體
-                                                    XYZ tempCenter_Up = new XYZ(tempCenter.X, tempCenter.Y, tempCenter.Z + 100);
-                                                    XYZ tempCenter_Dn = new XYZ(tempCenter.X, tempCenter.Y, tempCenter.Z - 100);
-                                                    Curve vertiaclLine = Line.CreateBound(tempCenter_Dn, tempCenter_Up);
-
-                                                    SolidCurveIntersection castIntersect = solid.IntersectWithCurve(vertiaclLine, options);
-                                                    Curve castIntersect_Crv = castIntersect.GetCurveSegment(0);
-                                                    XYZ intersect_DN = castIntersect_Crv.GetEndPoint(0);
-                                                    XYZ intersect_UP = castIntersect_Crv.GetEndPoint(1);
-                                                    double TOP = intersect_UP.Z - instance_Max.Z;
-                                                    double BOP = instance_Min.Z - intersect_DN.Z;
-
-                                                    instance.LookupParameter("TOP").Set(TOP);
-                                                    instance.LookupParameter("BOP").Set(BOP);
-
-                                                    //設定1/4的穿樑原則警告
-                                                    double beamHeight = castIntersect_Crv.Length; //樑在那個斷面的高度
-                                                    double alertValue = beamHeight / 4;
-                                                    //MessageBox.Show($"{alertValue}");
-                                                    if (TOP < alertValue)
-                                                    {
-                                                        message = "管離「樑頂部」過近，請調整後重新放置穿樑套管";
-                                                        //MessageBox.Show("管離「樑頂部」過近，請調整後重新放置穿樑套管");
-                                                        elements.Insert(pickPipe);
-                                                        return Result.Failed;
-                                                    }
-                                                    else if (BOP < alertValue)
-                                                    {
-                                                        message = "管離「樑底部」過近，請調整後重新放置穿樑套管";
-                                                        //MessageBox.Show("管離「樑底部」過近，請調整後重新放置穿樑套管");
-                                                        elements.Insert(pickPipe);
-                                                        return Result.Failed;
-                                                    }
-                                                }
-                                                tx.Commit();
-                                            }
+                                            message = "管離「樑頂部」過近，請調整後重新放置穿樑套管";
+                                            //MessageBox.Show("管離「樑頂部」過近，請調整後重新放置穿樑套管");
+                                            elements.Insert(pickPipe);
+                                            return Result.Failed;
+                                        }
+                                        else if (BOP < alertValue)
+                                        {
+                                            message = "管離「樑底部」過近，請調整後重新放置穿樑套管";
+                                            //MessageBox.Show("管離「樑底部」過近，請調整後重新放置穿樑套管");
+                                            elements.Insert(pickPipe);
+                                            return Result.Failed;
                                         }
                                     }
+                                    tx.Commit();
                                 }
                             }
+                        }
+                    }
+                }
                 //        }
                 //    }
                 //}
                 if (totalIntersectCount == 0)
                 {
                     message = "管沒有和任何的樑交集，請重新調整!";
+
                     elements.Insert(pickPipe);
                     return Result.Failed;
                 }
@@ -411,6 +415,26 @@ namespace BeamCasing_ButtonCreate
             }
         }
 
+        //製作一個方法，找到選中的樑中的其他套管
+        public List<Element> otherCast(Document doc, Solid solid)
+        {
+            List<Element> castIntersected = new List<Element>();
+            FilteredElementCollector otherCastCollector = new FilteredElementCollector(doc);
+            ElementFilter RC_CastFilter = new ElementCategoryFilter(BuiltInCategory.OST_PipeAccessory);
+            ElementFilter Cast_InstFilter = new ElementClassFilter(typeof(FamilyInstance));
+            LogicalAndFilter andFilter = new LogicalAndFilter(RC_CastFilter, Cast_InstFilter);
+
+            otherCastCollector.WherePasses(andFilter).WhereElementIsNotElementType();
+            otherCastCollector.WherePasses(new ElementIntersectsSolidFilter(solid));
+            foreach (FamilyInstance e in otherCastCollector)
+            {
+                if (e.Symbol.FamilyName == "穿樑套管共用參數_雙層樓模板")
+                {
+                    castIntersected.Add(e);
+                }
+            }
+            return castIntersected;
+        }
         public double faceValue_Z(Face face)
         {
             UV param = new UV(0.5, 0.5);
@@ -435,25 +459,9 @@ namespace BeamCasing_ButtonCreate
             }
         }
 
-        public class LinkSelectionFilter : Autodesk.Revit.UI.Selection.ISelectionFilter
-        {
-            public bool AllowElement(Element element)
-            {
-                if (element.Category.Name == "管")
-                {
-                    return true;
-                }
-                return false;
-            }
-            public bool AllowReference(Reference refer, XYZ point)
-            {
-                return false;
-            }
-        }
-
+        //建立外參樑過濾器
         public class BeamsLinkedSelectedFilter : ISelectionFilter
         {
-            //製作一個選擇外參樑的過濾器
             Autodesk.Revit.DB.Document doc = null;
 
             public BeamsLinkedSelectedFilter(Document document)
@@ -464,12 +472,12 @@ namespace BeamCasing_ButtonCreate
             {
                 return true;
             }
-            public bool AllowReference(Reference reference,XYZ point)
+            public bool AllowReference(Reference reference, XYZ point)
             {
                 RevitLinkInstance revitLinkInstance = doc.GetElement(reference) as RevitLinkInstance;
                 Autodesk.Revit.DB.Document docLink = revitLinkInstance.GetLinkDocument();
                 Element eBeamsLink = docLink.GetElement(reference.LinkedElementId);
-                if (eBeamsLink.Category.Name =="結構構架")
+                if (eBeamsLink.Category.Name == "結構構架")
                 {
                     return true;
                 }
