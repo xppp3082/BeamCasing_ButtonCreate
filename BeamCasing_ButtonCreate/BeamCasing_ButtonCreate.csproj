@@ -55,6 +55,7 @@
     <Compile Include="App.cs" />
     <Compile Include="BeamCasing.cs" />
     <Compile Include="BeamCasting_selectTest.cs" />
+    <Compile Include="CastInformUpdate.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

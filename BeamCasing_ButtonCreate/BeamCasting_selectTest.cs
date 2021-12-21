@@ -95,43 +95,48 @@ namespace BeamCasing_ButtonCreate
                 //        //抓取樑實例，並與線取交集
                 //        if (beams.Count() > 0)
                 //        {
-                foreach (Element e in pickBeams)
+                using (Transaction trans = new Transaction(doc))
                 {
-                    Options geomOptions = new Options();
-                    geomOptions.ComputeReferences = true;
-                    geomOptions.DetailLevel = ViewDetailLevel.Fine;
-
-                    //GeometryElement類中包含了構成該園件的所有幾何元素，線、邊、面、體-->這些在Revit中被歸為GeometryObject類
-                    //因此要用foreach找出其中屬於solid的部分
-                    GeometryElement geoElement = e.get_Geometry(geomOptions);
-                    foreach (GeometryObject obj in geoElement)
+                    trans.Start("放置穿樑套管");
+                    foreach (Element e in pickBeams)
                     {
-                        Solid solid = obj as Solid;
-                        if (null != solid)
-                        {
-                            SolidCurveIntersectionOptions options = new SolidCurveIntersectionOptions();
-                            LocationCurve locationCurve = pickPipe.Location as LocationCurve;
-                            Curve pipeCurve = locationCurve.Curve;
-                            SolidCurveIntersection intersection = solid.IntersectWithCurve(pipeCurve, options);
-                            intersectCount = intersection.SegmentCount;
-                            totalIntersectCount += intersectCount;
-                            List<Element> castsInThisBeam = otherCast(doc, solid);
-                            MessageBox.Show($"在這根樑中有{castsInThisBeam.Count()}個套管了");
-                            //if(套管數>0){在instance被產出之後，針對每個套管和instance進行計算，如果有水平向距離小於穿樑原則的，則穿樑失敗}
-                            //在做這件事時需要把所有穿樑套管放在同一個平面處理，進行距離計算
-                            for (int i = 0; i < intersectCount; i++)
-                            {
-                                intersectLength += intersection.GetCurveSegment(i).Length;
-                                Curve tempCurve = intersection.GetCurveSegment(i);
-                                XYZ tempCenter = tempCurve.Evaluate(0.5, true);
-                                FamilySymbol CastSymbol2 = new BeamCast().findRC_CastSymbol(doc, RC_Cast, pickPipe);
-                                MEPCurve mepCurve = pickPipe as MEPCurve;
-                                Level castLevel = mepCurve.ReferenceLevel;
+                        Options geomOptions = new Options();
+                        geomOptions.ComputeReferences = true;
+                        geomOptions.DetailLevel = ViewDetailLevel.Fine;
 
-                                //開始放置穿樑套管
-                                using (Transaction tx = new Transaction(doc))
+                        //GeometryElement類中包含了構成該園件的所有幾何元素，線、邊、面、體-->這些在Revit中被歸為GeometryObject類
+                        //因此要用foreach找出其中屬於solid的部分
+                        GeometryElement geoElement = e.get_Geometry(geomOptions);
+                        foreach (GeometryObject obj in geoElement)
+                        {
+                            Solid solid = obj as Solid;
+                            if (null != solid)
+                            {
+                                SolidCurveIntersectionOptions options = new SolidCurveIntersectionOptions();
+                                LocationCurve locationCurve = pickPipe.Location as LocationCurve;
+                                Curve pipeCurve = locationCurve.Curve;
+                                SolidCurveIntersection intersection = solid.IntersectWithCurve(pipeCurve, options);
+                                intersectCount = intersection.SegmentCount;
+                                totalIntersectCount += intersectCount;
+
+                                //選擇完外參樑後，建立一個List裝取所有在這跟外參樑中的套管
+                                List<Element> castsInThisBeam = otherCast(doc, solid);
+                                //MessageBox.Show($"在這根樑中有{castsInThisBeam.Count()}個套管了");
+
+
+                                for (int i = 0; i < intersectCount; i++)
                                 {
-                                    tx.Start("創造穿樑套管");
+                                    intersectLength += intersection.GetCurveSegment(i).Length;
+                                    Curve tempCurve = intersection.GetCurveSegment(i);
+                                    XYZ tempCenter = tempCurve.Evaluate(0.5, true);
+                                    FamilySymbol CastSymbol2 = new BeamCast().findRC_CastSymbol(doc, RC_Cast, pickPipe);
+                                    MEPCurve mepCurve = pickPipe as MEPCurve;
+                                    Level castLevel = mepCurve.ReferenceLevel;
+
+                                    //開始放置穿樑套管
+                                    //using (Transaction tx = new Transaction(doc))
+                                    //{
+                                    //    tx.Start("創造穿樑套管");
                                     //創建穿樑套管
                                     instance = doc.Create.NewFamilyInstance(tempCenter, CastSymbol2, castLevel, StructuralType.NonStructural);
 
@@ -195,17 +200,39 @@ namespace BeamCasing_ButtonCreate
                                         instance.LookupParameter("系統別").Set("未指定");
                                     }
 
-                                    ////switch的版本
-                                    //switch (pipeSystem)
-                                    //{
-                                    //    case "P 排水-汙水(SP)":
-                                    //        instance.LookupParameter("系統別").Set("P");
-                                    //        break;
-                                    //    case "P 排水-廢水(WP)":
-                                    //        instance.LookupParameter("系統別").Set("P");
-                                    //        break;
-                                    //}
 
+                                    //可以用這樣的方法取的穿樑套管的外徑
+                                    //MessageBox.Show($"這個穿樑套管的管外徑為{(instance.get_BoundingBox(null).Max.Z-instance.get_BoundingBox(null).Min.Z)*30.48}cm");
+
+                                    //針對已在樑中的穿樑套管做檢核
+                                    double casrCreatedWidth = instance.get_BoundingBox(null).Max.Z - instance.get_BoundingBox(null).Min.Z;
+                                    LocationPoint castCreatedLocate = instance.Location as LocationPoint;
+                                    XYZ castCreatedXYZ = castCreatedLocate.Point;
+
+                                    if (castsInThisBeam.Count() > 0)
+                                    {
+                                        foreach (Element cast in castsInThisBeam)
+                                        {
+                                            //取得這個在樑中套管的「寬度」
+                                            double castWidth = cast.get_BoundingBox(null).Max.Z - cast.get_BoundingBox(null).Min.Z;
+                                            LocationPoint locatePt = cast.Location as LocationPoint;
+                                            XYZ locateXYZ = locatePt.Point;
+
+                                            //調整每個穿樑套管的點位到與正在創造的這個至同樣高度後，測量距離
+                                            XYZ locateAdjust = new XYZ(locateXYZ.X, locateXYZ.Y, castCreatedXYZ.Z);
+                                            double distBetween = castCreatedXYZ.DistanceTo(locateAdjust);
+
+                                            //如果水平向距離太近，則無法放置穿樑套管
+                                            if (distBetween < (casrCreatedWidth + castWidth) * 1.5)
+                                            {
+                                                elements.Insert(cast);
+                                                message = "管離亮顯的套管太近，無法放置穿樑套管";
+                                                return Result.Failed;
+                                            }
+
+                                        }
+                                    }
+                                    
                                     //設定BOP、TOP
                                     if (intersectCount > 0)
                                     {
@@ -218,8 +245,8 @@ namespace BeamCasing_ButtonCreate
                                         double instanceHeight = instance_Max.Z - instance_Min.Z; //穿樑套管的高度
 
                                         //針對每個實體
-                                        XYZ tempCenter_Up = new XYZ(tempCenter.X, tempCenter.Y, tempCenter.Z + 100);
-                                        XYZ tempCenter_Dn = new XYZ(tempCenter.X, tempCenter.Y, tempCenter.Z - 100);
+                                        XYZ tempCenter_Up = new XYZ(tempCenter.X, tempCenter.Y, tempCenter.Z + 50);
+                                        XYZ tempCenter_Dn = new XYZ(tempCenter.X, tempCenter.Y, tempCenter.Z - 50);
                                         Curve vertiaclLine = Line.CreateBound(tempCenter_Dn, tempCenter_Up);
 
                                         SolidCurveIntersection castIntersect = solid.IntersectWithCurve(vertiaclLine, options);
@@ -251,25 +278,26 @@ namespace BeamCasing_ButtonCreate
                                             return Result.Failed;
                                         }
                                     }
-                                    tx.Commit();
+                                    //    tx.Commit();
+                                    //}
                                 }
                             }
                         }
                     }
-                }
-                //        }
-                //    }
-                //}
-                if (totalIntersectCount == 0)
-                {
-                    message = "管沒有和任何的樑交集，請重新調整!";
+                    //        }
+                    //    }
+                    //}
+                    if (totalIntersectCount == 0)
+                    {
+                        message = "管沒有和任何的樑交集，請重新調整!";
 
-                    elements.Insert(pickPipe);
-                    return Result.Failed;
+                        elements.Insert(pickPipe);
+                        return Result.Failed;
+                    }
+                    //MessageBox.Show($"共交集{intersectCount}處，總交集長度為{intersectLength * 30.48}");
+                    MessageBox.Show("穿樑套管放置完成!!");
+                    trans.Commit();
                 }
-                //MessageBox.Show($"共交集{intersectCount}處，總交集長度為{intersectLength * 30.48}");
-                MessageBox.Show("穿樑套管放置完成!!");
-
             }
             catch
             {
