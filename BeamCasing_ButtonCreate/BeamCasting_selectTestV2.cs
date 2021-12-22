@@ -12,13 +12,12 @@ using Autodesk.Revit.DB.Structure;
 using System.Windows.Forms;
 #endregion
 
-
 namespace BeamCasing_ButtonCreate
 {
     [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
-    class BeamCasting_selectTest : IExternalCommand
+    class BeamCasting_selectTestV2 : IExternalCommand
     {
-        //點選管創建穿樑套管
+        //點選管創建穿樑套管，通用模型元件測試
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             try
@@ -232,7 +231,7 @@ namespace BeamCasing_ButtonCreate
 
                                         }
                                     }
-                                    
+
                                     //設定BOP、TOP
                                     if (intersectCount > 0)
                                     {
@@ -514,3 +513,4 @@ namespace BeamCasing_ButtonCreate
         }
     }
 }
+
