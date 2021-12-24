@@ -57,6 +57,7 @@
     <Compile Include="BeamCasting_selectTest.cs" />
     <Compile Include="BeamCasting_selectTestV2.cs" />
     <Compile Include="CastInformUpdate.cs" />
+    <Compile Include="CastInformUpdateV2.cs" />
     <Compile Include="pickLevelTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
