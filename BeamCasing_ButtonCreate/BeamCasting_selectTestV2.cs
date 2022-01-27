@@ -154,8 +154,8 @@ namespace BeamCasing_ButtonCreate
                                     double floorHeight = topLevel.Elevation - lowLevel.Elevation;
                                     //double instHeight = instance.get_BoundingBox(null).Max.Z - instance.get_BoundingBox(null).Min.Z;
                                     //double toMove = pickPipe.LookupParameter("偏移").AsDouble() - floorHeight+ pickPipe.LookupParameter("直徑").AsDouble();
-                                    double adjust = instance.LookupParameter("偏移調整").AsDouble();
-                                    double toMove = pickPipe.LookupParameter("偏移").AsDouble() - floorHeight+adjust ;
+                                    double adjust = instance.LookupParameter("管外半徑").AsDouble();
+                                    double toMove = pickPipe.LookupParameter("偏移").AsDouble() - floorHeight + adjust;
                                     double toMove2 = tempCenter.Z - topLevel.Elevation + pickPipe.LookupParameter("直徑").AsDouble();
                                     instance.LookupParameter("偏移").Set(toMove);
 
@@ -204,7 +204,7 @@ namespace BeamCasing_ButtonCreate
                                     }
                                     else if (pipeSystem.Contains("G 瓦斯"))
                                     {
-                                        instance.LookupParameter("系統別").Set("GA");
+                                        instance.LookupParameter("系統別").Set("G");
                                     }
                                     else
                                     {
@@ -315,8 +315,10 @@ namespace BeamCasing_ButtonCreate
                                             return Result.Failed;
                                         }
                                     }
-                                    //    tx.Commit();
-                                    //}
+
+
+                                    //對標註設定是鋼構開孔還是RC開孔
+
                                 }
                             }
                         }
@@ -488,9 +490,7 @@ namespace BeamCasing_ButtonCreate
             ElementFilter Cast_InstFilter = new ElementClassFilter(typeof(FamilyInstance));
             LogicalAndFilter andFilter = new LogicalAndFilter(RC_CastFilter, Cast_InstFilter);
             Outline beamOtLn = new Outline(solid.GetBoundingBox().Min, solid.GetBoundingBox().Min);
-            BoundingBoxIntersectsFilter beamBoundingBoxFilter = new BoundingBoxIntersectsFilter(beamOtLn);
-
-
+            //BoundingBoxIntersectsFilter beamBoundingBoxFilter = new BoundingBoxIntersectsFilter(beamOtLn);
             otherCastCollector.WherePasses(andFilter).WhereElementIsNotElementType();
             //otherCastCollector.WherePasses(beamBoundingBoxFilter).ToElements();
             otherCastCollector.WherePasses(new ElementIntersectsSolidFilter(solid));
@@ -527,6 +527,7 @@ namespace BeamCasing_ButtonCreate
             }
             return castIntersected;
         }
+
 
         //製作用來排序樓層的方法
         public double sortLevelbyHeight(Element element)

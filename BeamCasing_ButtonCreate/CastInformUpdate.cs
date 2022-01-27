@@ -32,7 +32,6 @@ namespace BeamCasing_ButtonCreate
                 //4.並把這些套管亮顯或ID寫下來
                 UIApplication uiapp = commandData.Application;
                 Autodesk.Revit.ApplicationServices.Application app = uiapp.Application;
-
                 UIDocument uidoc = commandData.Application.ActiveUIDocument;
                 Document doc = uidoc.Document;
 
@@ -56,10 +55,14 @@ namespace BeamCasing_ButtonCreate
                         }
                     }
                 }
+
+                //建置蒐集特例的List
                 int updateCastNum = 0;
                 List<Element> intersectInst = new List<Element>();
                 List<ElementId> updateCastIDs = new List<ElementId>();
-                
+                List<Element> Cast_tooClose = new List<Element>(); //存放離樑頂或樑底太近的套管
+                List<Element> Cast_tooBig = new List<Element>(); //存放太大的套管
+                List<Element> Cast_Conflict = new List<Element>(); //存放彼此太過靠近的套管
 
                 //先找出doc中所有的外參樑
                 foreach (Document d in app.Documents)
@@ -67,8 +70,8 @@ namespace BeamCasing_ButtonCreate
                     if (d.IsLinked)
                     {
                         FilteredElementCollector linkedBeams = new FilteredElementCollector(d).OfClass(typeof(Instance)).OfCategory(BuiltInCategory.OST_StructuralFraming);
-
                         //MessageBox.Show($"連結模型中有{linkedBeams.Count()}個樑實例");
+                        
                         using (Transaction trans = new Transaction(doc))
                         {
                             trans.Start("更新穿樑套管資訊");
@@ -84,6 +87,16 @@ namespace BeamCasing_ButtonCreate
                                     Solid solid = obj as Solid;
                                     if (null != solid)
                                     {
+                                        //檢核每隻樑的transform屬性，如果差很多就必須要transform回來
+                                        foreach (Instance i in linkedBeams)
+                                        {
+                                            Transform transform = i.GetTransform();
+                                            if (!transform.AlmostEqual(Transform.Identity))
+                                            {
+                                                solid = SolidUtils.CreateTransformed(solid, transform.Inverse);
+                                            }
+                                        }
+
                                         //用每個被實做出來的套管針對這隻樑進行檢查
                                         //針對有交集的套管，計算TOP和BOP是否相同
                                         //針對不同的，加入他們的IDll
@@ -103,13 +116,12 @@ namespace BeamCasing_ButtonCreate
                                             SolidCurveIntersection intersection = solid.IntersectWithCurve(instVerticalCrv, options);
                                             int intersectCount = intersection.SegmentCount;
 
-                                            //目前用curve去切樑實體的方法太不穩定
 
+                                            //針對有切割到的實體去做計算
                                             if (intersectCount > 0)
                                             {
                                                 //針對有交集的實體去做計算
                                                 intersectInst.Add(inst);
-                                                //將樑編號寫入元件中
 
                                                 //計算TOP、BOP等六個參數
                                                 LocationPoint cast_Locate = inst.Location as LocationPoint;
@@ -130,6 +142,9 @@ namespace BeamCasing_ButtonCreate
                                                 //MessageBox.Show($"交集的上緣Z值為:{intersect_UP.Z}，下緣Z值為:{intersect_DN.Z}，這個穿樑套管的Z值為{LocationPt.Z}");
                                                 double TTOP_orgin = inst.LookupParameter("TTOP").AsDouble();
                                                 double BBOP_orgin = inst.LookupParameter("BBOP").AsDouble();
+                                                double beamHeight = intersect_UP.Z - intersect_DN.Z;
+                                                double castHeight = cast_Max.Z - cast_Min.Z;
+
                                                 if (TTOP_update != TTOP_orgin)
                                                 {
                                                     inst.LookupParameter("TTOP").Set(TTOP_update);
@@ -162,10 +177,21 @@ namespace BeamCasing_ButtonCreate
                                                 {
                                                     inst.LookupParameter("貫穿樑尺寸").Set("無尺寸");
                                                 }
+
+                                                //太過靠近樑底的套管
+                                                double alertValue = beamHeight / 4; //設定樑底與樑頂1/4的距離警告
+                                                if (inst.LookupParameter("TTOP").AsDouble() < alertValue || inst.LookupParameter("BBOP").AsDouble() < alertValue)
+                                                {
+                                                    Cast_tooClose.Add(inst);
+                                                }
+                                                //太大的套管
+                                                double alertMaxSize = beamHeight / 3;//設定1/3的尺寸警告
+                                                if (castHeight > alertMaxSize)
+                                                {
+                                                    Cast_tooBig.Add(inst);
+                                                }
                                             }
                                         }
-
-                                        //蒐集特例
                                     }
                                 }
                             }
@@ -182,9 +208,47 @@ namespace BeamCasing_ButtonCreate
                     {
                         output += $"{id};";
                     }
-                    MessageBox.Show(output, "CEC-MEP", MessageBoxButtons.OKCancel);
-                    //TaskDialog.Show("Revit", output);
-                    //MessageBox.Show(test);
+                    if (Cast_tooClose.Count() > 0 || Cast_tooBig.Count() > 0 || Cast_Conflict.Count() > 0)
+                    {
+                        output += $"\n有幾個套管有問題，歸類如下：";
+                        output += $"\n離樑底或樑底過近的套管有{Cast_tooClose.Count()}個，ID如下—\n";
+                        foreach (Element e in Cast_tooClose)
+                        {
+                            output += $"{e.Id};";
+                        }
+                        output += $"\n尺寸過大的套管有{Cast_tooBig.Count()}個，ID如下—\n";
+                        foreach (Element e in Cast_tooBig)
+                        {
+                            output += $"{e.Id};";
+                        }
+                        output += $"\n與其他套管過近的的套管有{Cast_Conflict.Count()}個，ID如下—\n";
+                        foreach (Element e in Cast_Conflict)
+                        {
+                            output+= $"{e.Id};";
+                        }
+                    }
+                        MessageBox.Show(output, "CEC-MEP", MessageBoxButtons.OKCancel);
+                }
+                //如果有不符合穿樑原則的：
+                else if (Cast_tooClose.Count() > 0 || Cast_tooBig.Count() > 0 || Cast_Conflict.Count() > 0)
+                {
+                    string output2 = $"有幾個套管有問題，歸類如下：";
+                    output2 += $"\n離樑底或樑底過近的套管有{Cast_tooClose.Count()}個，ID如下—\n";
+                    foreach (Element e in Cast_tooClose)
+                    {
+                        output2 += $"{e.Id};";
+                    }
+                    output2 += $"\n尺寸過大的套管有{Cast_tooBig.Count()}個，ID如下—\n";
+                    foreach (Element e in Cast_tooBig)
+                    {
+                        output2 += $"{e.Id};";
+                    }
+                    output2 += $"\n與其他套管過近的的套管有{Cast_Conflict.Count()}個，ID如下—\n";
+                    foreach (Element e in Cast_Conflict)
+                    {
+                        output2 += $"{e.Id};";
+                    }
+                    MessageBox.Show(output2, "CEC-MEP", MessageBoxButtons.OKCancel);
                 }
                 else if (updateCastNum == 0)
                 {
@@ -199,7 +263,7 @@ namespace BeamCasing_ButtonCreate
             }
             watch.Stop();
             var elapsedMs = watch.ElapsedMilliseconds;
-            MessageBox.Show($"共花費{elapsedMs / 100}秒");
+            MessageBox.Show($"共花費{elapsedMs / (100 * 30.48)}秒");
             return Result.Succeeded;
         }
         public List<Element> otherCast_elem(Document doc, Element elem)
