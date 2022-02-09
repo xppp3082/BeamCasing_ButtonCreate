@@ -283,7 +283,7 @@ namespace BeamCasing_ButtonCreate
 
                                         //設定1/4的穿樑原則警告
                                         double beamHeight = castIntersect_Crv.Length; //樑在那個斷面的高度
-                                        double alertValue = beamHeight / 4;
+                                        double alertValue = beamHeight / 5;
                                         double min_alertValue = UnitUtils.ConvertToInternalUnits(200, unitType);//除了1/4或1/3的保護層限制之外，也有最小保護層的限制
                                         if (alertValue < min_alertValue)
                                         {
@@ -300,23 +300,21 @@ namespace BeamCasing_ButtonCreate
                                             elements.Insert(pickPipe);
                                             return Result.Failed;
                                         }
-                                        else if (BBOP < alertValue)
-                                        {
-                                            message = "管離「樑底部」過近，請調整後重新放置穿樑套管";
-                                            //MessageBox.Show("管離「樑底部」過近，請調整後重新放置穿樑套管");
-                                            elements.Insert(pickPipe);
-                                            return Result.Failed;
-                                        }
-                                        else if (TTOP < alertValue)
-                                        {
-                                            message = "管離「樑頂部」過近，請調整後重新放置穿樑套管";
-                                            //MessageBox.Show("管離「樑頂部」過近，請調整後重新放置穿樑套管");
-                                            elements.Insert(pickPipe);
-                                            return Result.Failed;
-                                        }
+                                        //else if (BBOP < alertValue)
+                                        //{
+                                        //    message = "管離「樑底部」過近，請調整後重新放置穿樑套管";
+                                        //    //MessageBox.Show("管離「樑底部」過近，請調整後重新放置穿樑套管");
+                                        //    elements.Insert(pickPipe);
+                                        //    return Result.Failed;
+                                        //}
+                                        //else if (TTOP < alertValue)
+                                        //{
+                                        //    message = "管離「樑頂部」過近，請調整後重新放置穿樑套管";
+                                        //    //MessageBox.Show("管離「樑頂部」過近，請調整後重新放置穿樑套管");
+                                        //    elements.Insert(pickPipe);
+                                        //    return Result.Failed;
+                                        //}
                                     }
-
-
                                     //對標註設定是鋼構開孔還是RC開孔
 
                                 }
@@ -332,7 +330,7 @@ namespace BeamCasing_ButtonCreate
                         return Result.Failed;
                     }
                     //MessageBox.Show($"共交集{intersectCount}處，總交集長度為{intersectLength * 30.48}");
-                    MessageBox.Show("穿樑套管放置完成!!");
+                    //MessageBox.Show("穿樑套管放置完成!!");
                     trans.Commit();
                 }
             }
@@ -433,35 +431,35 @@ namespace BeamCasing_ButtonCreate
                         }
                         else if (element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsValueString() == "100 mm")
                         {
-                            if (tempSymbol.Name == "150mm")
+                            if (tempSymbol.Name == "125mm")
                             {
                                 targetFamilySymbol = tempSymbol;
                             }
                         }
                         else if (element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsValueString() == "125 mm")
                         {
-                            if (tempSymbol.Name == "200mm")
+                            if (tempSymbol.Name == "150mm")
                             {
                                 targetFamilySymbol = tempSymbol;
                             }
                         }
                         else if (element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsValueString() == "150 mm")
                         {
-                            if (tempSymbol.Name == "250mm")
+                            if (tempSymbol.Name == "200mm")
                             {
                                 targetFamilySymbol = tempSymbol;
                             }
                         }
                         else if (element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsValueString() == "200 mm")
                         {
-                            if (tempSymbol.Name == "300mm")
+                            if (tempSymbol.Name == "250mm")
                             {
                                 targetFamilySymbol = tempSymbol;
                             }
                         }
                         else if (element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsValueString() == "250 mm")
                         {
-                            if (tempSymbol.Name == "350mm")
+                            if (tempSymbol.Name == "300mm")
                             {
                                 targetFamilySymbol = tempSymbol;
                             }
