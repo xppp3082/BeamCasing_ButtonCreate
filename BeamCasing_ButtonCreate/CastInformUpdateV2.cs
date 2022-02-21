@@ -338,12 +338,12 @@ namespace BeamCasing_ButtonCreate
                             Solid castSolid = singleSolidFromElement(inst);
                             ElementIntersectsSolidFilter solidFilter = new ElementIntersectsSolidFilter(castSolid);
                             pipeCollector.WherePasses(boxIntersectsFilter).WherePasses(solidFilter);
+                            inst.LookupParameter("干涉管數量").Set(pipeCollector.Count());
+
                             if (pipeCollector.Count() == 0)
                             {
                                 Cast_Empty.Add(inst.Id);
                             }
-                            inst.LookupParameter("干涉管數量").Set(pipeCollector.Count());
-
                             //針對蒐集到的管去做系統別的更新
                             if (pipeCollector.Count() == 1)
                             {
@@ -393,7 +393,7 @@ namespace BeamCasing_ButtonCreate
                 }
                 else
                 {
-                    updateWindow.ProtectConflictListBox.ItemsSource="無";
+                    updateWindow.ProtectConflictListBox.ItemsSource = "無";
                 }
                 if (Cast_Conflict.Count > 0)
                 {
@@ -439,75 +439,6 @@ namespace BeamCasing_ButtonCreate
                 {
                     updateWindow.EmptyCastListBox.ItemsSource = "無";
                 }
-
-                ////MessageBox.Show($"共有{intersectInst.Count()}個套管與樑有交集");
-                //if (updateCastNum > 0)
-                //{
-                //    string output = $"更新的穿樑套管有{updateCastNum}個，ID如下：\n";
-                //    //string output = $"更新的穿樑套管有{updateCastIDs.Count()}個，ID如下：\n";
-                //    foreach (ElementId id in updateCastIDs)
-                //    {
-                //        output += $"{id};";
-                //    }
-                //    if (Cast_tooClose.Count() > 0 || Cast_tooBig.Count() > 0 || Cast_Conflict.Count() > 0)
-                //    {
-                //        output += $"\n有幾個套管有問題，歸類如下：";
-                //        output += $"\n離樑底或樑底過近的套管有{Cast_tooClose.Count()}個，ID如下—\n";
-                //        foreach (Element e in Cast_tooClose)
-                //        {
-                //            output += $"{e.Id};";
-                //        }
-                //        output += $"\n尺寸過大的套管有{Cast_tooBig.Count()}個，ID如下—\n";
-                //        foreach (Element e in Cast_tooBig)
-                //        {
-                //            output += $"{e.Id};";
-                //        }
-                //        output += $"\n與其他套管過近的的套管有{Cast_Conflict.Count()}個，ID如下—\n";
-                //        foreach (Element e in Cast_Conflict)
-                //        {
-                //            output += $"{e.Id};";
-                //        }
-                //    }
-                //    MessageBox.Show(output, "CEC-MEP", MessageBoxButtons.OKCancel);
-                //}
-                ////如果有不符合穿樑原則的：
-                //else if (Cast_tooClose.Count() > 0 || Cast_tooBig.Count() > 0 || Cast_Conflict.Count() > 0 || Cast_OtherConfilct.Count() > 0 || Cast_BeamConfilct.Count() > 0)
-                //{
-                //    string output2 = $"有幾個套管有問題，歸類如下：";
-                //    output2 += $"\n離樑底或樑底過近的套管有{Cast_tooClose.Count()}個，ID如下—\n";
-                //    foreach (Element e in Cast_tooClose)
-                //    {
-                //        output2 += $"{e.Id};";
-                //    }
-                //    output2 += $"\n尺寸過大的套管有{Cast_tooBig.Count()}個，ID如下—\n";
-                //    foreach (Element e in Cast_tooBig)
-                //    {
-                //        output2 += $"{e.Id};";
-                //    }
-                //    output2 += $"\n與其他套管過近的的套管有{Cast_Conflict.Count()}個，ID如下—\n";
-                //    foreach (Element e in Cast_Conflict)
-                //    {
-                //        output2 += $"{e.Id};";
-                //    }
-                //    output2 += $"\n在小樑中，且離其他樑太近的套管有{Cast_OtherConfilct.Count()}個，ID如下—\n";
-                //    foreach (Element e in Cast_OtherConfilct)
-                //    {
-                //        output2 += $"{e.Id};";
-                //    }
-                //    output2 += $"\n在大樑中，且離兩端柱太近的套管有{Cast_BeamConfilct.Count()}個，ID如下—\n";
-                //    foreach (Element e in Cast_BeamConfilct)
-                //    {
-                //        output2 += $"{e.Id};";
-                //    }
-
-                //    MessageBox.Show(output2, "CEC-MEP", MessageBoxButtons.OKCancel);
-
-                //}
-                //else if (updateCastNum == 0)
-                //{
-                //    MessageBox.Show("所有套管資訊都已更新完畢!!", "CEC-MEP", MessageBoxButtons.OKCancel);
-                //}
-                //MessageBox.Show($"這個模型中有{castInstances.Count()}個實做的穿樑套管");
             }
             catch
             {

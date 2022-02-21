@@ -25,18 +25,24 @@
             <RowDefinition Height="5"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="5"/>
-            <RowDefinition Height="0.5*"/>
+            <RowDefinition Height="1*"/>
             <RowDefinition Height="10"/>
             <RowDefinition Height="0.5*"/>
         </Grid.RowDefinitions>
 
-        <!--設定穿樑原則的圖例-->
-        <GroupBox Header="穿樑原則圖示" HorizontalAlignment="Left" Height="169" Grid.RowSpan="3" VerticalAlignment="Top" Width="384"  Grid.ColumnSpan="3"/>
-        <TextBlock HorizontalAlignment="Left" Margin="5,10,0,0" Grid.Row="4" TextWrapping="Wrap" Text="請選擇欲干涉的外參檔案名稱："  VerticalAlignment="Top" Height="21" Width="182"/>
-        <ComboBox x:Name="LinkedFileComboBox" Grid.Column="2" HorizontalAlignment="Left" Margin="0,10,0,0" Grid.Row="4" VerticalAlignment="Top" Width="187" Grid.ColumnSpan="1"/>
+        <!--設定大樑穿樑原則的圖例-->
+        <GroupBox Header="穿樑原則圖示-大樑" Grid.Row="0"  Grid.Column="0" Grid.RowSpan="3"  Grid.ColumnSpan="3"  >
+            <Image x:Name="GriderImage" Margin="0,10" Source="/BeamCasing_ButtonCreate;component/Resources/穿樑原則圖說-01.png"  Stretch="Fill"/>
+        </GroupBox>
+
+        <!--設定小樑穿樑原則的圖例-->
+        <GroupBox Header="穿樑原則圖示-小樑" Grid.Row="4"  Grid.Column="0" Grid.RowSpan="3"  Grid.ColumnSpan="3"  >
+            <Image x:Name="OtherImage" Margin="0,10" Source="/BeamCasing_ButtonCreate;component/Resources/穿樑原則圖說-02.png" Stretch="Fill"/>
+        </GroupBox>
+
 
         <!--設定各類警示，以tabControl進行設定-->
-        <TabControl Grid.ColumnSpan="3" Grid.Column="4" HorizontalAlignment="Left"  Grid.Row="0" Grid.RowSpan="8" VerticalAlignment="Top" >
+        <TabControl Grid.ColumnSpan="4" Grid.Column="4" HorizontalAlignment="Left"  Grid.Row="0" Grid.RowSpan="7"  >
             <TabItem Header="保護層警示" >
                 <Grid >
                     <Grid.RowDefinitions>
@@ -44,8 +50,8 @@
                         <RowDefinition Height="10"/>
                         <RowDefinition Height="5*"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Text="與保護層衝突的穿樑套管ID如下："  Margin="5,5,5,0"/>
-                    <ListBox x:Name="ProtectConflictListBox" Height="200" Grid.Row="2" Margin="5"/>
+                    <TextBlock Text="與保護層衝突的穿樑套管ID如下："  Margin="5,15,5,0"/>
+                    <ListBox x:Name="ProtectConflictListBox"  Grid.Row="1" Grid.RowSpan="2" Margin="5"/>
                 </Grid>
             </TabItem>
             <TabItem Header="尺寸警示">
@@ -55,8 +61,8 @@
                         <RowDefinition Height="10"/>
                         <RowDefinition Height="5*"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Text="尺寸過大的穿樑套管ID如下："  Margin="5,5,5,0"/>
-                    <ListBox x:Name="TooBigCastListBox" Height="200" Grid.Row="2" Margin="5"/>
+                    <TextBlock Text="尺寸過大的穿樑套管ID如下："  Margin="5,15,5,0"/>
+                    <ListBox x:Name="TooBigCastListBox"  Grid.Row="1" Grid.RowSpan="2" Margin="5"/>
                 </Grid>
             </TabItem>
             <TabItem Header="過近警示">
@@ -66,30 +72,30 @@
                         <RowDefinition Height="10"/>
                         <RowDefinition Height="5*"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Text="與其他套管過近的穿樑套管ID如下："  Margin="5,5,5,0"/>
-                    <ListBox x:Name="TooCloseCastListBox" Height="200" Grid.Row="2" Margin="5"/>
+                    <TextBlock Text="與其他套管過近的穿樑套管ID如下："  Margin="5,15,5,0"/>
+                    <ListBox x:Name="TooCloseCastListBox"  Grid.Row="1" Grid.RowSpan="2" Margin="5"/>
                 </Grid>
             </TabItem>
-            <TabItem Header="小樑警示" >
+            <TabItem Header="ST樑警示" >
                 <Grid >
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="10"/>
                         <RowDefinition Height="5*"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Text="在小樑中，且與其他樑過近的穿樑套管ID如下："  Margin="5,5,5,0"/>
-                    <ListBox x:Name="OtherCastListBox" Height="200" Grid.Row="2" Margin="5"/>
+                    <TextBlock  Margin="5,15,5,0"><Run Text="在"/><Run Text="ST"/><Run Text="樑中，且與樑的"/><Run Text="兩端過近的"/><Run Text="穿樑套管ID如下："/></TextBlock>
+                    <ListBox x:Name="OtherCastListBox"  Grid.Row="1" Grid.RowSpan="2" Margin="5"/>
                 </Grid>
             </TabItem>
-            <TabItem Header="大樑警示">
+            <TabItem Header="RC樑警示">
                 <Grid >
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="10"/>
                         <RowDefinition Height="5*"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Text="在大樑中，且與其他柱過近的穿樑套管ID如下："  Margin="5,5,5,0"/>
-                    <ListBox x:Name="GriderCastListBox"  Height="200" Grid.Row="2" Margin="5"/>
+                    <TextBlock  Margin="5,15,5,0"><Run Text="在"/><Run Text="R"/><Run Text="C"/><Run Text="樑中，且與其他柱過近的穿樑套管ID如下："/></TextBlock>
+                    <ListBox x:Name="GriderCastListBox"   Grid.Row="1" Grid.RowSpan="2" Margin="5"/>
                 </Grid>
             </TabItem>
             <TabItem Header="空管警示">
@@ -99,17 +105,17 @@
                         <RowDefinition Height="10"/>
                         <RowDefinition Height="5*"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Text="套管中沒有管的穿樑套管ID如下："  Margin="5,5,5,0"/>
-                    <ListBox x:Name="EmptyCastListBox"  Height="200" Grid.Row="2" Margin="5"/>
+                    <TextBlock Text="套管中沒有管的穿樑套管ID如下："  Margin="5,15,5,0"/>
+                    <ListBox x:Name="EmptyCastListBox"   Grid.Row="1" Grid.RowSpan="2" Margin="5" />
                 </Grid>
             </TabItem>
         </TabControl>
 
         <!--設定ProgressBar-->
-        <ProgressBar HorizontalAlignment="Left" Height="23" Margin="5,0,0,35" Grid.Row="4" VerticalAlignment="Bottom" Width="379" Grid.ColumnSpan="3" Grid.RowSpan="3"/>
 
         <!--設定確定與取消按鈕-->
-        <Button x:Name="ContinueButton" Content="執行" Grid.Column="4" HorizontalAlignment="Left" Margin="155,0,0,0" Grid.Row="7" VerticalAlignment="Top" Width="100" Height="25" Grid.RowSpan="2" Grid.ColumnSpan="3" Click="ContinueButton_Click"/>
-        <Button x:Name="CancelButton" Content="取消" Grid.Column="6" HorizontalAlignment="Left" Grid.Row="7" VerticalAlignment="Top" Width="100" Height="25" Grid.RowSpan="2" Margin="76,0,0,0" Click="CancelButton_Click"/>
+
+        <Button x:Name="ContinueButton" Content="確定" Grid.Column="4" HorizontalAlignment="Left" Margin="155,1,0,0" Grid.Row="8" VerticalAlignment="Top" Width="100" Height="25" Grid.ColumnSpan="3" Click="ContinueButton_Click"/>
+        <Button x:Name="CancelButton" Content="取消" Grid.Column="6" HorizontalAlignment="Left" Grid.Row="8" VerticalAlignment="Top" Width="100" Height="25" Margin="76,1,0,0" Click="CancelButton_Click"/>
     </Grid>
 </Window>
