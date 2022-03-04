@@ -133,4 +133,16 @@
   <data name="穿樑原則示意圖_02" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\穿樑原則示意圖-02.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
+  <data name="穿樑套管ICON合集_RC" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\穿樑套管ICON合集_RC.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="穿樑套管ICON合集_ST" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\穿樑套管ICON合集_ST.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="穿樑套管ICON合集_更新" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\穿樑套管ICON合集_更新.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="穿樑套管ICON合集_設定" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\穿樑套管ICON合集_設定.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
 </root>

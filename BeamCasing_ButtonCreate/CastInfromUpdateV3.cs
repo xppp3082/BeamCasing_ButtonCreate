@@ -42,8 +42,9 @@ namespace BeamCasing_ButtonCreate
                 Document doc = uidoc.Document;
 
                 //一些初始設定，套管名稱，檔案名稱，系統縮寫
-                string CastName = "穿樑套管共用參數_通用模型";
                 string CastMakerName = "CEC";
+                string InternalName_ST = "CEC-穿樑開口";
+                string InternalName_RC = "CEC-穿樑套管";
                 List<string> AllLinkName = new List<string>();
                 List<string> systemName = new List<string>() { "E", "T", "W", "P", "F", "A", "G" };
                 List<string> usefulParaName = new List<string> { "BTOP", "BCOP", "BBOP", "TTOP", "TCOP", "TBOP", "【原則檢討】上部檢討", "【原則檢討】下部檢討", "【原則檢討】尺寸檢討", "【原則檢討】是否穿樑", "【原則檢討】邊距檢討", "干涉管數量", "系統別", "貫穿樑尺寸", "貫穿樑材料", "貫穿樑編號" };
@@ -67,8 +68,9 @@ namespace BeamCasing_ButtonCreate
                     foreach (FamilyInstance e in coll)
                     {
                         //if (e.Symbol.FamilyName == CastName)
-                        //以製造商跟名稱雙重確認是否為正確的元件
-                        if (e.Symbol.get_Parameter(BuiltInParameter.ALL_MODEL_MANUFACTURER).AsString() == CastMakerName && e.Symbol.FamilyName.Contains("套管"))
+                        //以製造商跟API識別名稱雙重確認是否為正確的元件
+                        //if (e.Symbol.get_Parameter(BuiltInParameter.ALL_MODEL_MANUFACTURER).AsString() == CastMakerName && e.Symbol.FamilyName.Contains("套管"))
+                        if (e.Symbol.get_Parameter(BuiltInParameter.ALL_MODEL_MANUFACTURER).AsString() == CastMakerName && e.Symbol.LookupParameter("API識別名稱").AsString().Contains(InternalName_ST))
                         {
                             castInstances.Add(e);
                         }
@@ -82,7 +84,7 @@ namespace BeamCasing_ButtonCreate
                     {
                         if (!CheckPara(famInst, item))
                         {
-                            MessageBox.Show($"執行失敗，請檢查{famInst.Symbol.Name}元件中是否缺少{item}參數欄位");
+                            MessageBox.Show($"執行失敗，請檢查{famInst.Symbol.FamilyName}元件中是否缺少{item}參數欄位");
                             return Result.Failed;
                         }
                     }
@@ -112,7 +114,6 @@ namespace BeamCasing_ButtonCreate
 
                 ElementCategoryFilter linkedFileFilter = new ElementCategoryFilter(BuiltInCategory.OST_RvtLinks);
                 FilteredElementCollector linkedFileCollector = new FilteredElementCollector(doc).WherePasses(linkedFileFilter).WhereElementIsNotElementType();
-                RevitLinkInstance targetLinkInstance = null;
 
                 //找到是否為SRC的方法
                 //先找到鋼構的外參檔案名稱(前提是鋼構和混凝土要完全切開)
@@ -251,7 +252,7 @@ namespace BeamCasing_ButtonCreate
                                     //針對有切割到的實體去做計算
                                     if (intersectCount > 0)
                                     {
-
+                                        string instInternalName = inst.Symbol.LookupParameter("API識別名稱").AsString();
                                         //針對有交集的實體去做計算
                                         inst.LookupParameter("【原則檢討】是否穿樑").Set("OK");
                                         //intersectInst.Add(inst);
@@ -275,11 +276,21 @@ namespace BeamCasing_ButtonCreate
                                         double TTOP_orgin = inst.LookupParameter("TTOP").AsDouble();
                                         double BBOP_orgin = inst.LookupParameter("BBOP").AsDouble();
                                         double beamHeight = intersect_UP.Z - intersect_DN.Z;
-                                        //double castHeight = cast_Max.Z - cast_Min.Z;
-                                        double castHeight = inst.Symbol.LookupParameter("管外直徑").AsDouble();
-
+                                        double castHeight = cast_Max.Z - cast_Min.Z;
+                                        //計算套管的高度，注意有Symbol和沒有Symbol的取法
+                                        //double castHeight = 0.0;
+                                        //if (instInternalName.Contains("圓"))
+                                        //{
+                                        //    castHeight = inst.Symbol.LookupParameter("管外直徑").AsDouble();
+                                        //}else if (instInternalName.Contains("方"))
+                                        //{
+                                        //    castHeight = inst.LookupParameter("高度(H)").AsDouble();
+                                        //}
                                         double TTOP_Check = Math.Round(UnitUtils.ConvertFromInternalUnits(TTOP_update, unitType), 1);
                                         double TTOP_orginCheck = Math.Round(UnitUtils.ConvertFromInternalUnits(TTOP_orgin, unitType), 1);
+                                        double BBOP_Check = Math.Round(UnitUtils.ConvertFromInternalUnits(BBOP_update, unitType), 1);
+                                        double BBOP_orginCheck = Math.Round(UnitUtils.ConvertFromInternalUnits(BBOP_orgin, unitType), 1);
+
 
                                         //檢查樑為大樑還是小樑，更新檢核的判斷依據
                                         double C_distRatio = 0.0;
@@ -357,11 +368,10 @@ namespace BeamCasing_ButtonCreate
                                             if (d < 0)
                                             {
                                                 inst.LookupParameter("【原則檢討】是否穿樑").Set("不符合");
-                                                break;
                                             }
                                         }
 
-                                        if (TTOP_Check != TTOP_orginCheck)
+                                        if (TTOP_Check != TTOP_orginCheck || BBOP_Check !=BBOP_orginCheck)
                                         {
                                             inst.LookupParameter("TTOP").Set(TTOP_update);
                                             inst.LookupParameter("BTOP").Set(BTOP_update);
@@ -372,7 +382,7 @@ namespace BeamCasing_ButtonCreate
                                             Element updateElem = inst as Element;
                                         }
 
-                                        //寫入樑編號與量尺寸
+                                        //寫入樑編號與樑尺寸
                                         string beamName = targetBeam.LookupParameter("編號").AsString();
                                         string beamSIze = targetBeam.LookupParameter("類型").AsValueString();//抓取類型
                                         if (beamName != null)
@@ -394,8 +404,18 @@ namespace BeamCasing_ButtonCreate
 
 
                                         //太過靠近樑底的套管
-                                        double alertValue = C_protectRatio * beamHeight; //設定樑底與樑頂的距離警告
-                                        double tempProtectValue = UnitUtils.ConvertToInternalUnits(C_protectMin, unitType);
+                                        double alertValue = 0.0; //設定樑底與樑頂的距離警告
+                                        double tempProtectValue = 0.0;
+                                        if (instInternalName.Contains("圓"))
+                                        {
+                                            alertValue = C_protectRatio * beamHeight;
+                                            tempProtectValue = UnitUtils.ConvertToInternalUnits(C_protectMin, unitType);
+                                        }
+                                        else if (instInternalName.Contains("方"))
+                                        {
+                                            alertValue = R_protectRatio * beamHeight;
+                                            tempProtectValue = UnitUtils.ConvertToInternalUnits(R_protectMin, unitType);
+                                        }
                                         if (tempProtectValue > alertValue)
                                         {
                                             alertValue = tempProtectValue;
@@ -417,22 +437,42 @@ namespace BeamCasing_ButtonCreate
                                             inst.LookupParameter("【原則檢討】上部檢討").Set("OK");
                                             inst.LookupParameter("【原則檢討】下部檢討").Set("OK");
                                         }
-                                        //太大的套管
-                                        double alertMaxSize = C_sizeRatio * beamHeight;//設定最大尺寸警告
-                                        double tempSizeValue = UnitUtils.ConvertToInternalUnits(C_sizeMax, unitType);
-                                        if (tempSizeValue < alertValue)
+
+                                        //太大的圓套管
+                                        if (instInternalName.Contains("圓"))
                                         {
-                                            alertMaxSize = tempSizeValue;
+                                            double alertMaxSize = C_sizeRatio * beamHeight;//設定最大尺寸警告
+                                            double tempSizeValue = UnitUtils.ConvertToInternalUnits(C_sizeMax, unitType);
+                                            if (tempSizeValue < alertValue)
+                                            {
+                                                alertMaxSize = tempSizeValue;
+                                            }
+                                            if (castHeight > alertMaxSize)
+                                            {
+                                                Cast_tooBig.Add(inst.Id);
+                                                inst.LookupParameter("【原則檢討】尺寸檢討").Set("不符合");
+                                            }
+                                            else
+                                            {
+                                                inst.LookupParameter("【原則檢討】尺寸檢討").Set("OK");
+                                            }
                                         }
-                                        if (castHeight > alertMaxSize)
+                                        else if (instInternalName.Contains("方"))
                                         {
-                                            Cast_tooBig.Add(inst.Id);
-                                            inst.LookupParameter("【原則檢討】尺寸檢討").Set("不符合");
+                                            double alertMaxSizeD = R_sizeRatioD * beamHeight;//設定最大高度尺寸檢討
+                                            double alertMaxSizeW = R_sizeRatioW * beamHeight;//設定最大寬度尺寸檢討
+                                            double instHeight = inst.LookupParameter("高度(H)").AsDouble();
+                                            double instWidth = inst.LookupParameter("寬度(W)").AsDouble();
+                                            if (instHeight > alertMaxSizeD || instWidth > alertMaxSizeW)
+                                            {
+                                                inst.LookupParameter("【原則檢討】尺寸檢討").Set("不符合");
+                                            }
+                                            else
+                                            {
+                                                inst.LookupParameter("【原則檢討】尺寸檢討").Set("OK");
+                                            }
                                         }
-                                        else
-                                        {
-                                            inst.LookupParameter("【原則檢討】尺寸檢討").Set("OK");
-                                        }
+
 
                                         //距離大樑(StructuralType=Beam) 或小樑(StructuralType=Other) 太近的套管
                                         //先判斷是方開口還是圓開口(距離不一樣)
@@ -459,7 +499,17 @@ namespace BeamCasing_ButtonCreate
                                             foreach (XYZ pt in points)
                                             {
                                                 double distToBeamEnd = instPt.DistanceTo(pt);
-                                                double distCheck = C_distRatio * beamHeight;
+                                                //判斷是方形還是圓型，調整參數
+                                                double distCheck = 0.0;
+                                                if (instInternalName.Contains("圓"))
+                                                {
+                                                    distCheck = C_distRatio * beamHeight;
+                                                }
+                                                else if (instInternalName.Contains("方"))
+                                                {
+                                                    distCheck = R_distRatio * beamHeight;
+                                                }
+
                                                 if (distToBeamEnd < distCheck)
                                                 {
                                                     Cast_BeamConfilct.Add(inst.Id);
@@ -485,11 +535,21 @@ namespace BeamCasing_ButtonCreate
                                             foreach (XYZ pt in points)
                                             {
                                                 double distToBeamEnd = instPt.DistanceTo(pt);
-                                                double distCheck = C_distRatio * beamHeight;
+                                                //判斷是方形還是圓型，調整參數
+                                                double distCheck = 0.0;
+                                                if (instInternalName.Contains("圓"))
+                                                {
+                                                    distCheck = C_distRatio * beamHeight;
+                                                }
+                                                else if (instInternalName.Contains("方"))
+                                                {
+                                                    distCheck = R_distRatio * beamHeight;
+                                                }
                                                 if (distToBeamEnd - castHeight / 2 < beamHeight)
                                                 {
                                                     Cast_OtherConfilct.Add(inst.Id);
                                                     inst.LookupParameter("【原則檢討】邊距檢討").Set("不符合");
+                                                    break;
                                                 }
                                                 else
                                                 {
@@ -510,8 +570,9 @@ namespace BeamCasing_ButtonCreate
                                             else
                                             {
                                                 //利用嚴謹的方法求取距離
-                                                //如果是圓形的套管
-                                                if (inst.Symbol.FamilyName == CastName)
+                                                //如果是圓形的套管，會有三種狀況，圓與圓、方與方、圓與方
+                                                //圓開口和圓開口測距離
+                                                if (instInternalName.Contains("圓") && castInstances[i].Symbol.LookupParameter("API識別名稱").AsString().Contains("圓"))
                                                 {
                                                     double Dia1 = inst.Symbol.LookupParameter("管外直徑").AsDouble();
                                                     double Dia2 = castInstances[i].Symbol.LookupParameter("管外直徑").AsDouble();
@@ -519,26 +580,66 @@ namespace BeamCasing_ButtonCreate
                                                     LocationPoint otherLocation = castInstances[i].Location as LocationPoint;
                                                     XYZ thisPt = thisLocation.Point;
                                                     XYZ otherPt = otherLocation.Point;
-                                                    double distBetween = thisPt.DistanceTo(otherPt);
+                                                    XYZ newPt = new XYZ(otherPt.X, otherPt.Y, thisPt.Z);
+                                                    double distBetween = thisPt.DistanceTo(newPt);
                                                     if (distBetween < (Dia1 + Dia2) * 1.5)
                                                     {
                                                         Cast_Conflict.Add(castInstances[i].Id);
                                                         castInstances[i].LookupParameter("【原則檢討】邊距檢討").Set("不符合");
+                                                        break;
                                                     }
                                                     else
                                                     {
                                                         castInstances[i].LookupParameter("【原則檢討】邊距檢討").Set("OK");
                                                     }
-                                                    //MessageBox.Show(Dia1.ToString());
+                                                }
+                                                //圓開口和方開口測距離
+                                                else if (instInternalName.Contains("圓") && castInstances[i].Symbol.LookupParameter("API識別名稱").AsString().Contains("方"))
+                                                {
+                                                    double Dia1 = inst.Symbol.LookupParameter("管外直徑").AsDouble();
+                                                    double Dia2 = castInstances[i].LookupParameter("寬度(W)").AsDouble();
+                                                    LocationPoint thisLocation = inst.Location as LocationPoint;
+                                                    LocationPoint otherLocation = castInstances[i].Location as LocationPoint;
+                                                    XYZ thisPt = thisLocation.Point;
+                                                    XYZ otherPt = otherLocation.Point;
+                                                    XYZ newPt = new XYZ(otherPt.X, otherPt.Y, thisPt.Z);
+                                                    double distBetween = thisPt.DistanceTo(newPt);
+                                                    if (distBetween < (Dia1 + Dia2) * 1.5 || distBetween / 1.5 < beamHeight)
+                                                    {
+                                                        Cast_Conflict.Add(castInstances[i].Id);
+                                                        castInstances[i].LookupParameter("【原則檢討】邊距檢討").Set("不符合");
+                                                         break;
+                                                    }
+                                                    else
+                                                    {
+                                                        castInstances[i].LookupParameter("【原則檢討】邊距檢討").Set("OK");
+                                                    }
+                                                }
+                                                //方開口和方開口測距離
+                                                else if (instInternalName.Contains("方") && castInstances[i].Symbol.LookupParameter("API識別名稱").AsString().Contains("方"))
+                                                {
+                                                    double Dia1 = inst.LookupParameter("寬度(W)").AsDouble();
+                                                    double Dia2 = castInstances[i].LookupParameter("寬度(W)").AsDouble();
+                                                    LocationPoint thisLocation = inst.Location as LocationPoint;
+                                                    LocationPoint otherLocation = castInstances[i].Location as LocationPoint;
+                                                    XYZ thisPt = thisLocation.Point;
+                                                    XYZ otherPt = otherLocation.Point;
+                                                    XYZ newPt = new XYZ(otherPt.X, otherPt.Y, thisPt.Z);
+                                                    double distBetween = thisPt.DistanceTo(newPt);
+                                                    if (distBetween / 1.5 < beamHeight)
+                                                    {
+                                                        Cast_Conflict.Add(castInstances[i].Id);
+                                                        castInstances[i].LookupParameter("【原則檢討】邊距檢討").Set("不符合");
+                                                        break;
+                                                    }
+                                                    else
+                                                    {
+                                                        castInstances[i].LookupParameter("【原則檢討】邊距檢討").Set("OK");
+                                                    }
                                                 }
                                             }
                                         }
-
                                     }
-                                    //else if (intersectCount == 0)
-                                    //{
-                                    //    inst.LookupParameter("【原則檢討】是否穿樑").Set("不符合");
-                                    //}
                                 }
                             }
                         }

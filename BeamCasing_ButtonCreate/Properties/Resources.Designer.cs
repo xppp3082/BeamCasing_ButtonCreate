@@ -109,5 +109,45 @@ namespace BeamCasing_ButtonCreate.Properties {
                 return ((System.Drawing.Bitmap)(obj));
             }
         }
+        
+        /// <summary>
+        ///   查詢類型 System.Drawing.Bitmap 的當地語系化資源。
+        /// </summary>
+        internal static System.Drawing.Bitmap 穿樑套管ICON合集_RC {
+            get {
+                object obj = ResourceManager.GetObject("穿樑套管ICON合集_RC", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   查詢類型 System.Drawing.Bitmap 的當地語系化資源。
+        /// </summary>
+        internal static System.Drawing.Bitmap 穿樑套管ICON合集_ST {
+            get {
+                object obj = ResourceManager.GetObject("穿樑套管ICON合集_ST", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   查詢類型 System.Drawing.Bitmap 的當地語系化資源。
+        /// </summary>
+        internal static System.Drawing.Bitmap 穿樑套管ICON合集_更新 {
+            get {
+                object obj = ResourceManager.GetObject("穿樑套管ICON合集_更新", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   查詢類型 System.Drawing.Bitmap 的當地語系化資源。
+        /// </summary>
+        internal static System.Drawing.Bitmap 穿樑套管ICON合集_設定 {
+            get {
+                object obj = ResourceManager.GetObject("穿樑套管ICON合集_設定", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
     }
 }

@@ -150,7 +150,7 @@ namespace BeamCasing_ButtonCreate
                                     instance = doc.Create.NewFamilyInstance(tempCenter, CastSymbol2, topLevel, StructuralType.NonStructural);
 
                                     //調整長度與高度
-                                    instance.LookupParameter("長度").Set(intersection.GetCurveSegment(i).Length + 2 / 30.48); //套管前後加兩公分
+                                    instance.LookupParameter("L").Set(intersection.GetCurveSegment(i).Length + 2 / 30.48); //套管前後加兩公分
                                     double floorHeight = topLevel.Elevation - lowLevel.Elevation;
                                     //double instHeight = instance.get_BoundingBox(null).Max.Z - instance.get_BoundingBox(null).Min.Z;
                                     //double toMove = pickPipe.LookupParameter("偏移").AsDouble() - floorHeight+ pickPipe.LookupParameter("直徑").AsDouble();
@@ -315,8 +315,6 @@ namespace BeamCasing_ButtonCreate
                                         //    return Result.Failed;
                                         //}
                                     }
-                                    //對標註設定是鋼構開孔還是RC開孔
-
                                 }
                             }
                         }
@@ -329,14 +327,12 @@ namespace BeamCasing_ButtonCreate
                         elements.Insert(pickPipe);
                         return Result.Failed;
                     }
-                    //MessageBox.Show($"共交集{intersectCount}處，總交集長度為{intersectLength * 30.48}");
-                    //MessageBox.Show("穿樑套管放置完成!!");
                     trans.Commit();
                 }
             }
             catch
             {
-                MessageBox.Show("執行失敗喔!");
+                MessageBox.Show("執行失敗!");
                 return Result.Failed;
             }
             return Result.Succeeded;
@@ -373,19 +369,22 @@ namespace BeamCasing_ButtonCreate
                         break;
                     }
                 }
-                //如果沒有找到，則自己加載
                 if (!symbolFound)
                 {
-                    //string filePath = @"D:\大陸工程\Dropbox (CHC Group)\工作人生\組內專案\04.元件製作\穿樑套管\穿樑套管測試_雙層樓模板.rfa";
-                    //string filePath = @"D:\Dropbox (CHC Group)\工作人生\組內專案\04.元件製作\穿樑套管\穿樑套管測試_雙層樓模板.rfa";
-                    string filePath = @"D:\Dropbox (CHC Group)\工作人生\組內專案\04.元件製作\穿樑套管\穿樑套管共用參數_通用模型.rfa";
-                    Family family;
-                    bool loadSuccess = doc.LoadFamily(filePath, out family);
-                    if (loadSuccess)
-                    {
-                        RC_CastType = family;
-                    }
+                    MessageBox.Show("尚未載入指定的穿樑套管元件!");
                 }
+
+                ////如果沒有找到，則自己加載
+                //if (!symbolFound)
+                //{
+                //    string filePath = @"D:\Dropbox (CHC Group)\工作人生\組內專案\04.元件製作\穿樑套管\穿樑套管共用參數_通用模型.rfa";
+                //    Family family;
+                //    bool loadSuccess = doc.LoadFamily(filePath, out family);
+                //    if (loadSuccess)
+                //    {
+                //        RC_CastType = family;
+                //    }
+                //}
 
                 return RC_CastType;
             }
