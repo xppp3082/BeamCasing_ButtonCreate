@@ -84,6 +84,7 @@
     <Compile Include="CastInfromUpdateV4.cs" />
     <Compile Include="CreateBeamCast.cs" />
     <Compile Include="CreateBeamCastST.cs" />
+    <Compile Include="CreateBeamCastV2.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>

@@ -76,6 +76,7 @@ namespace BeamCasing_ButtonCreate
                 //找到所有穿樑套管元件
                 List<FamilyInstance> famList = findTargetElements(doc);
 
+
                 //檢查參數
                 foreach (FamilyInstance famInst in famList)
                 {
@@ -89,9 +90,11 @@ namespace BeamCasing_ButtonCreate
                     }
                 }
 
+
                 //更新穿樑套管參數
                 using (Transaction trans = new Transaction(doc))
                 {
+
                     Dictionary<ElementId, List<Element>> castDict = getCastBeamDict(doc);
                     trans.Start("更新關樑套管參數");
                     foreach (ElementId tempId in castDict.Keys)
@@ -208,6 +211,7 @@ namespace BeamCasing_ButtonCreate
                 foreach (RevitLinkInstance linkedInst in linkedFileCollector)
                 {
                     Document linkDoc = linkedInst.GetLinkDocument();
+                    if (linkDoc == null || !linkedInst.IsValidObject) continue;
                     FilteredElementCollector linkedBeams = new FilteredElementCollector(linkDoc).OfClass(typeof(Instance)).OfCategory(BuiltInCategory.OST_StructuralFraming);
                     foreach (Element e in linkedBeams)
                     {
@@ -237,7 +241,9 @@ namespace BeamCasing_ButtonCreate
                 foreach (RevitLinkInstance linkedInst in linkedFileCollector)
                 {
                     Document linkDoc = linkedInst.GetLinkDocument();
+                    if (linkDoc == null || !linkedInst.IsValidObject) continue;
                     FilteredElementCollector linkedBeams = new FilteredElementCollector(linkDoc).OfClass(typeof(Instance)).OfCategory(BuiltInCategory.OST_StructuralFraming);
+                    if (linkedBeams.Count() == 0) continue;
                     foreach (Element e in linkedBeams)
                     {
                         FamilyInstance beamInstance = e as FamilyInstance;
@@ -255,6 +261,48 @@ namespace BeamCasing_ButtonCreate
             }
             return SClinkedInstances;
         }
+        public List<RevitLinkInstance> getLinkedInstances(Document doc, string materialName)
+        {
+            List<RevitLinkInstance> targetLinkedInstances = new List<RevitLinkInstance>();
+            Document RCfile = null;
+            ElementCategoryFilter linkedFileFilter = new ElementCategoryFilter(BuiltInCategory.OST_RvtLinks);
+            FilteredElementCollector linkedFileCollector = new FilteredElementCollector(doc).WherePasses(linkedFileFilter).WhereElementIsNotElementType();
+            try
+            {
+                if (linkedFileCollector.Count() > 0)
+                {
+                    foreach (RevitLinkInstance linkedInst in linkedFileCollector)
+                    {
+                        Document linkDoc = linkedInst.GetLinkDocument();
+                        bool isLoaded = RevitLinkType.IsLoaded(doc, linkedInst.GetTypeId());
+                        //if (linkDoc == null /*|| !linkedInst.IsValidObject*/ || !isLoaded) continue;
+                        if (linkDoc != null && isLoaded)
+                        {
+                            FilteredElementCollector linkedBeams = new FilteredElementCollector(linkDoc).OfClass(typeof(Instance)).OfCategory(BuiltInCategory.OST_StructuralFraming);
+                            if (linkedBeams.Count() == 0) continue;
+                            foreach (Element e in linkedBeams)
+                            {
+                                FamilyInstance beamInstance = e as FamilyInstance;
+                                if (beamInstance.StructuralMaterialType.ToString() == materialName && !targetLinkedInstances.Contains(linkedInst))
+                                {
+                                    //RCfile = linkDoc;
+                                    targetLinkedInstances.Add(linkedInst);
+                                }
+                            }
+                        }
+                    }
+                }
+                else if (linkedFileCollector.Count() == 0)
+                {
+                    MessageBox.Show("模型中沒有實做的外參檔案");
+                }
+            }
+            catch
+            {
+                MessageBox.Show("請檢查外參連結是否為載入或有問題!");
+            }
+            return targetLinkedInstances;
+        }
         public RevitLinkInstance getTargetLinkedInstance(Document doc, string linkTilte)
         {
             RevitLinkInstance targetLinkInstance = null;
@@ -264,7 +312,8 @@ namespace BeamCasing_ButtonCreate
             {
                 foreach (RevitLinkInstance linkedInst in linkedFileCollector)
                 {
-                    if (linkedInst.GetLinkDocument().Title == linkTilte)
+                    //if (linkedInst.GetLinkDocument().Title == linkTilte)
+                    if (linkedInst.Name.Contains(linkTilte))
                     {
                         targetLinkInstance = linkedInst;
                         break;
@@ -304,19 +353,32 @@ namespace BeamCasing_ButtonCreate
             }
             return SCfile;
         }
-
         public Parameter getBeamWidthPara(Element beam)
         {
             Parameter targetPara = null;
             FamilyInstance beamInst = beam as FamilyInstance;
             //因為樑寬度為類型參數
-            if (!checkPara(beamInst.Symbol, "梁寬度"))
+            double val1 = 0.0;
+            double val2 = 0.0;
+            if (checkPara(beamInst.Symbol, "梁寬度"))
             {
-                MessageBox.Show("樑中沒有「梁寬度」參數，無法更新套管長度!");
+                val1 = beamInst.Symbol.LookupParameter("梁寬度").AsDouble();
             }
-            else
+            if (checkPara(beamInst.Symbol, "樑寬"))
+            {
+                val2 = beamInst.Symbol.LookupParameter("樑寬").AsDouble();
+            }
+            if (val1 >= val2)
             {
                 targetPara = beamInst.Symbol.LookupParameter("梁寬度");
+            }
+            else if (val1 <= val2)
+            {
+                targetPara = beamInst.Symbol.LookupParameter("樑寬");
+            }
+            else if (targetPara == null)
+            {
+                MessageBox.Show("請檢察樑中的「寬度」參數是否有誤，無法更新套管長度!");
             }
             return targetPara;
         }
@@ -382,9 +444,12 @@ namespace BeamCasing_ButtonCreate
             Dictionary<ElementId, List<Element>> castBeamDict = new Dictionary<ElementId, List<Element>>();
             List<Element> targetBeams = new List<Element>();
             List<FamilyInstance> familyInstances = findTargetElements(doc);
-            List<RevitLinkInstance> RCLinkedInstance = getRCLinkedInstances(doc);
-            List<RevitLinkInstance> SCLinkedInstance = getSCLinkedInstances(doc);
+            //List<RevitLinkInstance> SCLinkedInstance = getSCLinkedInstances(doc);
+            //List<RevitLinkInstance> RCLinkedInstance = getRCLinkedInstances(doc);
+            List<RevitLinkInstance> SCLinkedInstance = getLinkedInstances(doc, "Steel");
+            List<RevitLinkInstance> RCLinkedInstance = getLinkedInstances(doc, "Concrete");
             Transform totalTransform = null;
+
 
             if (RCLinkedInstance.Count != 0 || SCLinkedInstance.Count != 0)
             {
@@ -526,9 +591,9 @@ namespace BeamCasing_ButtonCreate
             double zTemp = x * val.Z + y * val2.Z + z * val3.Z + origin.Z;
             return new XYZ(xTemp, yTemp, zTemp);
         }
-
         public Element modifyCastLen(Element elem, Element linkedBeam)
         {
+            //這個功能應該還要視樑為RC還是SRC去決定寬度值
             //先利用linkedBeam反找revitLinkedInstance
             Document document = elem.Document;
             RevitLinkInstance targetLink = getTargetLinkedInstance(document, linkedBeam.Document.Title);

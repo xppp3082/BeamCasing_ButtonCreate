@@ -47,6 +47,9 @@ namespace BeamCasing_ButtonCreate
                     pickBeams.Add(eBeamsLinked);
                 }
 
+                //得到外參樑的revitLinkInstance來判斷transform
+
+
                 Family RC_Cast;
 
                 //載入元件檔
@@ -68,7 +71,6 @@ namespace BeamCasing_ButtonCreate
                 MEPCurve pipeCrv = pickPipe as MEPCurve;
                 Level lowLevel = pipeCrv.ReferenceLevel; //管在的樓層為下樓層
                 List<Element> level_List = levelCollector.OrderBy(x => sortLevelbyHeight(x)).ToList();
-
 
                 for (int i = 0; i < level_List.Count(); i++)
                 {
@@ -179,53 +181,70 @@ namespace BeamCasing_ButtonCreate
                                 XYZ projectEnd = intersection.GetCurveSegment(i).GetEndPoint(1);
                                 XYZ projectEndAdj = new XYZ(projectEnd.X, projectEnd.Y, projectStart.Z);
 
-                                //Line intersectLine = intersection.GetCurveSegment(i) as Line;
+
+
+                                //重新以樑的locationCurve 計算旋轉角度
+                                LocationCurve beamLocate = e.Location as LocationCurve;
+                                Curve beamCurve = beamLocate.Curve;
+                                XYZ beamStart = beamCurve.GetEndPoint(0);
+                                XYZ beamEnd = beamCurve.GetEndPoint(1);
+                                beamEnd = new XYZ(beamEnd.X, beamEnd.Y, beamStart.Z);
+                                Line beamCrvProject = Line.CreateBound(beamStart,beamEnd);
+
                                 Line intersectProject = Line.CreateBound(projectStart, projectEndAdj);
                                 double degree = 0.0;
-                                degree = basePoint.AngleTo(intersectProject.Direction);
+                                //degree = basePoint.AngleTo(intersectProject.Direction);
+                                degree = -basePoint.AngleTo(beamCrvProject.Direction)-Math.PI/2;
+                                double degree2 = intersectProject.Direction.AngleTo(beamCrvProject.Direction) * 180 / Math.PI;
+                                double degreeCheck = Math.Round(degree2, 0);
                                 instance.Location.Rotate(Axis, degree);
 
-                                //寫入系統別
-                                string pipeSystem = pickPipe.LookupParameter("系統類型").AsValueString();
-                                Parameter instSystem = instance.LookupParameter("系統別");
-                                if (pipeSystem.Contains("P 排水"))
-                                {
-                                    instSystem.Set("P");
-                                }
-                                else if (pipeSystem.Contains("P 通風"))
-                                {
-                                    instSystem.Set("P");
-                                }
-                                else if (pipeSystem.Contains("E 電氣"))
-                                {
-                                    instSystem.Set("E");
-                                }
-                                else if (pipeSystem.Contains("M 空調水"))
-                                {
-                                    instSystem.Set("A");
-                                }
-                                else if (pipeSystem.Contains("F 消防"))
-                                {
-                                    instSystem.Set("F");
-                                }
-                                else if (pipeSystem.Contains("W 給水"))
-                                {
-                                    instSystem.Set("W");
-                                }
-                                else if (pipeSystem.Contains("G 瓦斯"))
-                                {
-                                    instSystem.Set("G");
-                                }
-                                else
-                                {
-                                    instSystem.Set("未指定");
-                                }
+
+                                #region 為了要讓電管也可以使用，把自動放置就寫入系統別的功能拿掉。
+                                ////寫入系統別
+                                //string pipeSystem = pickPipe.LookupParameter("系統類型").AsValueString();
+                                //Parameter instSystem = instance.LookupParameter("系統別");
+                                //if (pipeSystem.Contains("P 排水"))
+                                //{
+                                //    instSystem.Set("P");
+                                //}
+                                //else if (pipeSystem.Contains("P 通風"))
+                                //{
+                                //    instSystem.Set("P");
+                                //}
+                                //else if (pipeSystem.Contains("E 電氣"))
+                                //{
+                                //    instSystem.Set("E");
+                                //}
+                                //else if (pipeSystem.Contains("M 空調水"))
+                                //{
+                                //    instSystem.Set("A");
+                                //}
+                                //else if (pipeSystem.Contains("F 消防"))
+                                //{
+                                //    instSystem.Set("F");
+                                //}
+                                //else if (pipeSystem.Contains("W 給水"))
+                                //{
+                                //    instSystem.Set("W");
+                                //}
+                                //else if (pipeSystem.Contains("G 瓦斯"))
+                                //{
+                                //    instSystem.Set("G");
+                                //}
+                                //else
+                                //{
+                                //    instSystem.Set("未指定");
+                                //}
+                                #endregion
 
                                 //針對已在樑中的穿樑套管做檢核
                                 double casrCreatedWidth = instance.get_BoundingBox(null).Max.Z - instance.get_BoundingBox(null).Min.Z;
                                 LocationPoint castCreatedLocate = instance.Location as LocationPoint;
                                 XYZ castCreatedXYZ = castCreatedLocate.Point;
 
+
+                                #region 在放置時就檢查使否過近的功能，目前暫不需要
                                 //if (castsInThisBeam.Count() > 0)
                                 //{
                                 //    foreach (Element cast in castsInThisBeam)
@@ -249,6 +268,7 @@ namespace BeamCasing_ButtonCreate
 
                                 //    }
                                 //}
+                                #endregion
 
                                 //設定BOP、TOP
                                 if (intersectCount > 0)
@@ -296,6 +316,7 @@ namespace BeamCasing_ButtonCreate
                                         alertValue = min_alertValue;
                                     }
 
+                                    #region 在放置時就檢查使否過近的功能，目前暫不需要
                                     //if (instanceHeight > beamHeight / 3)
                                     //{
                                     //    //設定如果穿樑套管>該樑斷面的1/3，則無法放置穿樑套管
@@ -317,6 +338,7 @@ namespace BeamCasing_ButtonCreate
                                     //    elements.Insert(pickPipe);
                                     //    return Result.Failed;
                                     //}
+                                    #endregion
                                 }
                             }
                         }
@@ -396,34 +418,44 @@ namespace BeamCasing_ButtonCreate
             public FamilySymbol findRC_CastSymbol(Document doc, Family CastFamily, Element element)
             {
                 FamilySymbol targetFamilySymbol = null; //用來找目標familySymbol
-                //如果確定找到family後，針對不同得管選取不同的穿樑套管大小，以大兩吋為規則，如果有坡度則大三吋
+                                                        //如果確定找到family後，針對不同得管選取不同的穿樑套管大小，以大兩吋為規則，如果有坡度則大三吋
+                Parameter targetPara = null;
+                if (element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM) != null)
+                {
+                    targetPara = element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM);
+                }
+                else if (element.get_Parameter(BuiltInParameter.RBS_CONDUIT_DIAMETER_PARAM) != null)
+                {
+                    targetPara = element.get_Parameter(BuiltInParameter.RBS_CONDUIT_DIAMETER_PARAM);
+                }
+
                 if (CastFamily != null)
                 {
                     foreach (ElementId castId in CastFamily.GetFamilySymbolIds())
                     {
                         FamilySymbol tempSymbol = doc.GetElement(castId) as FamilySymbol;
-                        if (element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsValueString() == "50 mm")
+                        if (targetPara.AsValueString() == "50 mm")
                         {
                             if (tempSymbol.Name == "80mm")
                             {
                                 targetFamilySymbol = tempSymbol;
                             }
                         }
-                        else if (element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsValueString() == "65 mm")
+                        else if (targetPara.AsValueString() == "65 mm")
                         {
                             if (tempSymbol.Name == "100mm")
                             {
                                 targetFamilySymbol = tempSymbol;
                             }
                         }
-                        else if (element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsValueString() == "80 mm")
+                        else if (targetPara.AsValueString() == "80 mm")
                         {
                             if (tempSymbol.Name == "125mm")
                             {
                                 targetFamilySymbol = tempSymbol;
                             }
                         }
-                        else if (element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsValueString() == "100 mm")
+                        else if (targetPara.AsValueString() == "100 mm")
                         {
                             if (tempSymbol.Name == "150mm")
                             {
@@ -431,28 +463,28 @@ namespace BeamCasing_ButtonCreate
                             }
                         }
 
-                        else if (element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsValueString() == "125 mm")
+                        else if (targetPara.AsValueString() == "125 mm")
                         {
                             if (tempSymbol.Name == "150mm")
                             {
                                 targetFamilySymbol = tempSymbol;
                             }
                         }
-                        else if (element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsValueString() == "150 mm")
+                        else if (targetPara.AsValueString() == "150 mm")
                         {
                             if (tempSymbol.Name == "200mm")
                             {
                                 targetFamilySymbol = tempSymbol;
                             }
                         }
-                        else if (element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsValueString() == "200 mm")
+                        else if (targetPara.AsValueString() == "200 mm")
                         {
                             if (tempSymbol.Name == "250mm")
                             {
                                 targetFamilySymbol = tempSymbol;
                             }
                         }
-                        else if (element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsValueString() == "250 mm")
+                        else if (targetPara.AsValueString() == "250 mm")
                         {
                             if (tempSymbol.Name == "300mm")
                             {
@@ -461,14 +493,13 @@ namespace BeamCasing_ButtonCreate
                         }
                         else
                         {
-                            if (tempSymbol.Name == "65mm")
+                            if (tempSymbol.Name == "80mm")
                             {
                                 targetFamilySymbol = tempSymbol;
                             }
                         }
                     }
                 }
-
                 targetFamilySymbol.Activate();
                 return targetFamilySymbol;
             }
@@ -509,7 +540,7 @@ namespace BeamCasing_ButtonCreate
         {
             public bool AllowElement(Element element)
             {
-                if (element.Category.Name == "管")
+                if (element.Category.Name == "管"|| element.Category.Name == "電管")
                 {
                     return true;
                 }
