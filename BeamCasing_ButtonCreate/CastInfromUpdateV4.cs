@@ -19,6 +19,7 @@ namespace BeamCasing_ButtonCreate
     [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     class CastInfromUpdateV4 : IExternalCommand
     {
+        public static string errorOutput = "";
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();//引用stopwatch物件
@@ -94,14 +95,24 @@ namespace BeamCasing_ButtonCreate
                 //更新穿樑套管參數
                 using (Transaction trans = new Transaction(doc))
                 {
-
                     Dictionary<ElementId, List<Element>> castDict = getCastBeamDict(doc);
                     trans.Start("更新關樑套管參數");
                     foreach (ElementId tempId in castDict.Keys)
                     {
-                        modifyCastLen(doc.GetElement(tempId), castDict[tempId].First());
+                        //更新穿樑套管資訊&內容
                         updateCastInst(doc.GetElement(tempId), castDict[tempId].First());
+                        updateCastMaterial(doc.GetElement(tempId), castDict[tempId].First());
                         updateCastContent(doc, doc.GetElement(tempId));
+                        //如果只有一支，以該支樑為準
+                        if (castDict[tempId].Count == 1)
+                        {
+                            modifyCastLen(doc.GetElement(tempId), castDict[tempId][0]);
+                        }
+                        //如果有兩支以上，表示其為SRC，以RC樑的外框為準
+                        else if (castDict[tempId].Count > 1)
+                        {
+                            modifyCastLen(doc.GetElement(tempId), castDict[tempId][1]);
+                        }
                     }
 
                     //檢查所有的實做套管，如果不再Dictionary中，則表示其沒有穿樑，「【原則檢討】是否穿樑」應該設為不符合
@@ -127,10 +138,12 @@ namespace BeamCasing_ButtonCreate
             }
             sw.Stop();//碼錶停止
             double sec = Math.Round(sw.Elapsed.TotalMilliseconds / 1000, 2);
-            MessageBox.Show($"套管資訊更新完成，共花費 {sec} 秒");
+            string output = $"套管資訊更新完成，共花費 {sec} 秒\n";
+            MessageBox.Show(output + errorOutput);
+            //MessageBox.Show($"套管資訊更新完成，共花費 {sec} 秒");
+            //MessageBox.Show(errorOutput);
             return Result.Succeeded;
         }
-
         public IList<Solid> GetTargetSolids(Element element)
         {
             List<Solid> solids = new List<Solid>();
@@ -306,23 +319,30 @@ namespace BeamCasing_ButtonCreate
         public RevitLinkInstance getTargetLinkedInstance(Document doc, string linkTilte)
         {
             RevitLinkInstance targetLinkInstance = null;
-            ElementCategoryFilter linkedFileFilter = new ElementCategoryFilter(BuiltInCategory.OST_RvtLinks);
-            FilteredElementCollector linkedFileCollector = new FilteredElementCollector(doc).OfClass(typeof(RevitLinkInstance)).WhereElementIsNotElementType();
-            if (linkedFileCollector.Count() > 0)
+            try
             {
-                foreach (RevitLinkInstance linkedInst in linkedFileCollector)
+                ElementCategoryFilter linkedFileFilter = new ElementCategoryFilter(BuiltInCategory.OST_RvtLinks);
+                FilteredElementCollector linkedFileCollector = new FilteredElementCollector(doc).OfClass(typeof(RevitLinkInstance)).WhereElementIsNotElementType();
+                if (linkedFileCollector.Count() > 0)
                 {
-                    //if (linkedInst.GetLinkDocument().Title == linkTilte)
-                    if (linkedInst.Name.Contains(linkTilte))
+                    foreach (RevitLinkInstance linkedInst in linkedFileCollector)
                     {
-                        targetLinkInstance = linkedInst;
-                        break;
+                        //if (linkedInst.GetLinkDocument().Title == linkTilte)
+                        if (linkedInst.Name.Contains(linkTilte))
+                        {
+                            targetLinkInstance = linkedInst;
+                            break;
+                        }
                     }
                 }
+                else if (targetLinkInstance == null)
+                {
+                    MessageBox.Show("未找到對應的實做Revit外參檔!!");
+                }
             }
-            else if (targetLinkInstance == null)
+            catch
             {
-                MessageBox.Show("未找到對應的實做Revit外參檔!!");
+                MessageBox.Show("找尋連結實體發生問題!");
             }
             return targetLinkInstance;
         }
@@ -407,125 +427,175 @@ namespace BeamCasing_ButtonCreate
             string internalNameST = "CEC-穿樑開口";
             string internalNameRC = "CEC-穿樑套管";
             List<FamilyInstance> castInstances = new List<FamilyInstance>();
-            FilteredElementCollector coll = new FilteredElementCollector(doc);
-            ElementCategoryFilter castCate_Filter = new ElementCategoryFilter(BuiltInCategory.OST_PipeAccessory);
-            ElementClassFilter castInst_Filter = new ElementClassFilter(typeof(Instance));
-            LogicalAndFilter andFilter = new LogicalAndFilter(castCate_Filter, castInst_Filter);
-            coll.WherePasses(andFilter).WhereElementIsNotElementType().ToElements(); //找出模型中實做的穿樑套管元件
-            if (coll != null)
+            try
             {
-                foreach (FamilyInstance e in coll)
+                FilteredElementCollector coll = new FilteredElementCollector(doc);
+                ElementCategoryFilter castCate_Filter = new ElementCategoryFilter(BuiltInCategory.OST_PipeAccessory);
+                ElementClassFilter castInst_Filter = new ElementClassFilter(typeof(Instance));
+                LogicalAndFilter andFilter = new LogicalAndFilter(castCate_Filter, castInst_Filter);
+                coll.WherePasses(andFilter).WhereElementIsNotElementType().ToElements(); //找出模型中實做的穿樑套管元件
+                if (coll != null)
                 {
-                    Parameter p = e.Symbol.LookupParameter("API識別名稱");
-                    if (p != null && p.AsString().Contains(internalNameST))
+                    foreach (FamilyInstance e in coll)
                     {
-                        castInstances.Add(e);
+                        Parameter p = e.Symbol.LookupParameter("API識別名稱");
+                        if (p != null && p.AsString().Contains(internalNameST))
+                        {
+                            castInstances.Add(e);
+                        }
+                        else if (p != null && p.AsString().Contains(internalNameRC))
+                        {
+                            castInstances.Add(e);
+                        }
                     }
-                    else if (p != null && p.AsString().Contains(internalNameRC))
+                }
+                else if (castInstances.Count() == 0)
+                {
                     {
-                        castInstances.Add(e);
+                        MessageBox.Show("尚未匯入套管元件，或模型中沒有實做的套管元件");
                     }
                 }
             }
-            else if (castInstances.Count() == 0)
+            catch
             {
-                {
-                    MessageBox.Show("尚未匯入套管元件，或模型中沒有實做的套管元件");
-                }
+                MessageBox.Show("蒐集套管發生問題!");
             }
             return castInstances;
         }
-
         //可以判斷樑中樑的程式-->用Dictionary裝穿樑套管以及與之對應的樑
         //因為樑與套管正常來說應該是一對一的關係，強制取得它們的關係(用套管ID反查干涉的樑)
         public Dictionary<ElementId, List<Element>> getCastBeamDict(Document doc)
         {
 
             Dictionary<ElementId, List<Element>> castBeamDict = new Dictionary<ElementId, List<Element>>();
-            List<Element> targetBeams = new List<Element>();
-            List<FamilyInstance> familyInstances = findTargetElements(doc);
-            //List<RevitLinkInstance> SCLinkedInstance = getSCLinkedInstances(doc);
-            //List<RevitLinkInstance> RCLinkedInstance = getRCLinkedInstances(doc);
-            List<RevitLinkInstance> SCLinkedInstance = getLinkedInstances(doc, "Steel");
-            List<RevitLinkInstance> RCLinkedInstance = getLinkedInstances(doc, "Concrete");
-            Transform totalTransform = null;
-
-
-            if (RCLinkedInstance.Count != 0 || SCLinkedInstance.Count != 0)
+            try
             {
-                foreach (FamilyInstance inst in familyInstances)
+                List<FamilyInstance> familyInstances = findTargetElements(doc);
+                //List<RevitLinkInstance> SCLinkedInstance = getSCLinkedInstances(doc);
+                //List<RevitLinkInstance> RCLinkedInstance = getRCLinkedInstances(doc);
+                List<RevitLinkInstance> SCLinkedInstance = getLinkedInstances(doc, "Steel");
+                List<RevitLinkInstance> RCLinkedInstance = getLinkedInstances(doc, "Concrete");
+                Transform totalTransform = null;
+                Transform inverseTransform = null;
+                if (RCLinkedInstance.Count != 0 || SCLinkedInstance.Count != 0)
                 {
-                    //將RC和ST的檔案分別與inst去做碰撞，取得有用效的樑，再用dictionary的key值判斷套管是否已經存在字典之中，有才進行執行
-                    foreach (RevitLinkInstance SClinkedInst in SCLinkedInstance)
+                    foreach (FamilyInstance inst in familyInstances)
                     {
-                        //這個套管還沒有對應的樑(不再字典的key值中)才進行計算
-                        if (!castBeamDict.Keys.Contains(inst.Id))
+                        //將RC和ST的檔案分別與inst去做碰撞，取得有用效的樑，再用dictionary的key值判斷套管是否已經存在字典之中，有才進行執行
+                        foreach (RevitLinkInstance SClinkedInst in SCLinkedInstance)
                         {
-                            totalTransform = SClinkedInst.GetTotalTransform();
-                            FilteredElementCollector collectorSC = getAllLinkedBeam(SClinkedInst.GetLinkDocument());
-                            Solid castSolid = singleSolidFromElement(inst);
-                            if (castSolid == null) continue;
-                            BoundingBoxXYZ castBounding = inst.get_BoundingBox(null);
-                            Transform t = castBounding.Transform;
-                            Outline outLine = new Outline(t.OfPoint(castBounding.Min), t.OfPoint(castBounding.Max));
-                            //Outline outLine = new Outline(castBounding.Min, castBounding.Max);
-                            BoundingBoxIntersectsFilter boundingBoxIntersectsFilter = new BoundingBoxIntersectsFilter(outLine);
-                            ElementIntersectsSolidFilter elementIntersectsSolidFilter = new ElementIntersectsSolidFilter(castSolid);
-                            collectorSC.WherePasses(boundingBoxIntersectsFilter).WherePasses(elementIntersectsSolidFilter);
-
-                            List<Element> tempList = collectorSC.ToList();
-                            if (tempList.Count > 0)
+                            //這個套管還沒有對應的樑(不在字典的key值中)才進行計算
+                            if (!castBeamDict.Keys.Contains(inst.Id))
                             {
-                                castBeamDict.Add(inst.Id, tempList);
+                                totalTransform = SClinkedInst.GetTotalTransform();
+                                inverseTransform = totalTransform.Inverse;
+                                FilteredElementCollector collectorSC = getAllLinkedBeam(SClinkedInst.GetLinkDocument());
+                                Solid castSolid = singleSolidFromElement(inst);
+                                if (castSolid == null) continue;
+
+                                //座標變換，因為抓法的關係，要轉換成外參檔「原本」的座標
+                                castSolid = SolidUtils.CreateTransformed(castSolid, inverseTransform);
+                                BoundingBoxXYZ solidBounding = castSolid.GetBoundingBox();
+                                XYZ solidCenter = castSolid.ComputeCentroid();
+                                Transform newTrans = Transform.Identity;
+                                newTrans.Origin = solidCenter;
+                                Outline outLine = new Outline(newTrans.OfPoint(solidBounding.Min), newTrans.OfPoint(solidBounding.Max));
+
+                                #region 尚未轉換之前的抓法，如果座標有變換可能會有問題
+                                //BoundingBoxXYZ castBounding = inst.get_BoundingBox(null);
+                                //Transform t = castBounding.Transform;
+                                //Outline outLine = new Outline(t.OfPoint(castBounding.Min), t.OfPoint(castBounding.Max));
+                                ////Outline outLine = new Outline(castBounding.Min, castBounding.Max);
+                                #endregion
+                                BoundingBoxIntersectsFilter boundingBoxIntersectsFilter = new BoundingBoxIntersectsFilter(outLine);
+                                ElementIntersectsSolidFilter elementIntersectsSolidFilter = new ElementIntersectsSolidFilter(castSolid);
+                                collectorSC.WherePasses(boundingBoxIntersectsFilter).WherePasses(elementIntersectsSolidFilter);
+
+                                List<Element> tempList = collectorSC.ToList();
+                                if (tempList.Count > 0)
+                                {
+                                    castBeamDict.Add(inst.Id, tempList);
+                                }
                             }
                         }
-                    }
-                    //和SC沒撞出東西，再和RC撞，如果被撞到的套管ID已在字典Key裡，則略過
-                    foreach (RevitLinkInstance RClinkedInst in RCLinkedInstance)
-                    {
-                        if (!castBeamDict.Keys.Contains(inst.Id))
+                        //和SC沒撞出東西，再和RC撞，如果被撞到的套管ID已在字典Key裡，則略過(後來不能略過，因為需要RC外框來更新套管長度)
+                        foreach (RevitLinkInstance RClinkedInst in RCLinkedInstance)
                         {
+                            //if (!castBeamDict.Keys.Contains(inst.Id))
+                            //{
                             totalTransform = RClinkedInst.GetTotalTransform();
+                            inverseTransform = totalTransform.Inverse;
                             FilteredElementCollector collectorSC = getAllLinkedBeam(RClinkedInst.GetLinkDocument());
                             Solid castSolid = singleSolidFromElement(inst);
                             if (castSolid == null) continue;
-                            BoundingBoxXYZ castBounding = inst.get_BoundingBox(null);
-                            Transform t = castBounding.Transform;
-                            Outline outLine = new Outline(t.OfPoint(castBounding.Min), t.OfPoint(castBounding.Max));
-                            //Outline outLine = new Outline(castBounding.Min, castBounding.Max);
+
+                            //座標變換，因為抓法的關係，要轉換成外參檔「原本」的座標
+                            castSolid = SolidUtils.CreateTransformed(castSolid, inverseTransform);
+                            BoundingBoxXYZ solidBounding = castSolid.GetBoundingBox();
+                            XYZ solidCenter = castSolid.ComputeCentroid();
+                            Transform newTrans = Transform.Identity;
+                            newTrans.Origin = solidCenter;
+                            Outline outLine = new Outline(newTrans.OfPoint(solidBounding.Min), newTrans.OfPoint(solidBounding.Max));
+
+                            #region 尚未轉換之前的抓法，如果座標有變換可能會有問題
+                            //BoundingBoxXYZ castBounding = inst.get_BoundingBox(null);
+                            //Transform t = castBounding.Transform;
+                            //Outline outLine = new Outline(t.OfPoint(castBounding.Min), t.OfPoint(castBounding.Max));
+                            ////Outline outLine = new Outline(castBounding.Min, castBounding.Max);
+                            #endregion
                             BoundingBoxIntersectsFilter boundingBoxIntersectsFilter = new BoundingBoxIntersectsFilter(outLine);
                             ElementIntersectsSolidFilter elementIntersectsSolidFilter = new ElementIntersectsSolidFilter(castSolid);
                             collectorSC.WherePasses(boundingBoxIntersectsFilter).WherePasses(elementIntersectsSolidFilter);
 
                             List<Element> tempList = collectorSC.ToList();
-                            if (tempList.Count > 0)
+                            //如果有蒐集到東西，而且在字典中尚未有此套管
+                            if (tempList.Count > 0 && !castBeamDict.Keys.Contains(inst.Id))
                             {
                                 castBeamDict.Add(inst.Id, tempList);
+                            }
+                            //如果有蒐集到東西，字典中已有此套管
+                            else if (tempList.Count > 0 && castBeamDict.Keys.Contains(inst.Id))
+                            {
+                                foreach (Element e in tempList)
+                                {
+                                    castBeamDict[inst.Id].Add(e);
+                                }
                             }
                         }
                     }
                 }
+            }
+            catch
+            {
+                MessageBox.Show("無法判斷套管與樑的關係!");
             }
             return castBeamDict;
         }
         public bool checkGrider(Element elem)
         {
             bool result = false;
-            Document doc = elem.Document;
-            FilteredElementCollector tempCollector = new FilteredElementCollector(doc).OfClass(typeof(Instance)).OfCategory(BuiltInCategory.OST_StructuralColumns);
-            BoundingBoxXYZ checkBounding = elem.get_BoundingBox(null);
-            Autodesk.Revit.DB.Transform t1 = checkBounding.Transform;
-            Outline outline1 = new Outline(t1.OfPoint(checkBounding.Min), t1.OfPoint(checkBounding.Max));
-            BoundingBoxIntersectsFilter boundingBoxIntersectsFilter1 = new BoundingBoxIntersectsFilter(outline1, 0.1);
-            //ElementIntersectsSolidFilter elementIntersectsSolidFilter1 = new ElementIntersectsSolidFilter(RCSolid);
-            tempCollector.WherePasses(boundingBoxIntersectsFilter1);
-            if (tempCollector.Count() > 0)
+            try
             {
-                result = true;
+                Document doc = elem.Document;
+                FilteredElementCollector tempCollector = new FilteredElementCollector(doc).OfClass(typeof(Instance)).OfCategory(BuiltInCategory.OST_StructuralColumns);
+                BoundingBoxXYZ checkBounding = elem.get_BoundingBox(null);
+                Autodesk.Revit.DB.Transform t1 = checkBounding.Transform;
+                Outline outline1 = new Outline(t1.OfPoint(checkBounding.Min), t1.OfPoint(checkBounding.Max));
+                BoundingBoxIntersectsFilter boundingBoxIntersectsFilter1 = new BoundingBoxIntersectsFilter(outline1, 0.1);
+                //ElementIntersectsSolidFilter elementIntersectsSolidFilter1 = new ElementIntersectsSolidFilter(RCSolid);
+                tempCollector.WherePasses(boundingBoxIntersectsFilter1);
+                if (tempCollector.Count() > 0)
+                {
+                    result = true;
+                }
+                else if (tempCollector.Count() == 0)
+                {
+                    result = false;
+                }
             }
-            else if (tempCollector.Count() == 0)
+            catch
             {
-                result = false;
+                MessageBox.Show("判斷大小樑失敗!");
             }
             return result;
         }
@@ -595,384 +665,597 @@ namespace BeamCasing_ButtonCreate
         {
             //這個功能應該還要視樑為RC還是SRC去決定寬度值
             //先利用linkedBeam反找revitLinkedInstance
-            Document document = elem.Document;
-            RevitLinkInstance targetLink = getTargetLinkedInstance(document, linkedBeam.Document.Title);
-            Transform linkedInstTrans = targetLink.GetTotalTransform();
-
-            //計算偏移值&設定長度
-            LocationCurve beamLocate = linkedBeam.Location as LocationCurve;
-            Curve beamCurve = beamLocate.Curve;
-            XYZ startPoint = beamCurve.GetEndPoint(0);
-            XYZ endPoint = beamCurve.GetEndPoint(1);
-            startPoint = TransformPoint(startPoint, linkedInstTrans);
-            endPoint = TransformPoint(endPoint, linkedInstTrans);
-            endPoint = new XYZ(endPoint.X, endPoint.Y, startPoint.Z);
-            Line tempCrv = Line.CreateBound(startPoint, endPoint);
-
-            LocationPoint castLocate = elem.Location as LocationPoint;
-            XYZ castPt = castLocate.Point;
-            XYZ tempPt = new XYZ(castPt.X, castPt.Y, startPoint.Z);
-            IntersectionResult intersectResult = tempCrv.Project(castPt);
-            XYZ targetPoint = intersectResult.XYZPoint;
-            targetPoint = new XYZ(targetPoint.X, targetPoint.Y, castPt.Z);
-            XYZ positionChange = targetPoint - castPt;
-            double castLength = getBeamWidthPara(linkedBeam).AsDouble() + 2 / 30.48;
-
             FamilyInstance updateCast = null;
-            FamilyInstance inst = elem as FamilyInstance;
-            Parameter instLenPara = inst.LookupParameter("L");
-            double beamWidth = getBeamWidthPara(linkedBeam).AsDouble();
-            //先調整套管位置
-            if (!castPt.IsAlmostEqualTo(targetPoint))
+            try
             {
-                ElementTransformUtils.MoveElement(document, inst.Id, positionChange);
+                Document document = elem.Document;
+                RevitLinkInstance targetLink = getTargetLinkedInstance(document, linkedBeam.Document.Title);
+                Transform linkedInstTrans = targetLink.GetTotalTransform();
+
+                //計算偏移值&設定長度
+                LocationCurve beamLocate = linkedBeam.Location as LocationCurve;
+                Curve beamCurve = beamLocate.Curve;
+                XYZ startPoint = beamCurve.GetEndPoint(0);
+                XYZ endPoint = beamCurve.GetEndPoint(1);
+                startPoint = TransformPoint(startPoint, linkedInstTrans);
+                endPoint = TransformPoint(endPoint, linkedInstTrans);
+                endPoint = new XYZ(endPoint.X, endPoint.Y, startPoint.Z);
+                Line tempCrv = Line.CreateBound(startPoint, endPoint);
+
+                LocationPoint castLocate = elem.Location as LocationPoint;
+                XYZ castPt = castLocate.Point;
+                XYZ tempPt = new XYZ(castPt.X, castPt.Y, startPoint.Z);
+                IntersectionResult intersectResult = tempCrv.Project(castPt);
+                XYZ targetPoint = intersectResult.XYZPoint;
+                targetPoint = new XYZ(targetPoint.X, targetPoint.Y, castPt.Z);
+                XYZ positionChange = targetPoint - castPt;
+                double castLength = getBeamWidthPara(linkedBeam).AsDouble() + 2 / 30.48;
+
+                FamilyInstance inst = elem as FamilyInstance;
+                Parameter instLenPara = inst.LookupParameter("L");
+                double beamWidth = getBeamWidthPara(linkedBeam).AsDouble();
+                //先調整套管位置
+                if (!castPt.IsAlmostEqualTo(targetPoint))
+                {
+                    ElementTransformUtils.MoveElement(document, inst.Id, positionChange);
+                }
+                //再調整套管長度
+                if (instLenPara.AsDouble() < beamWidth)
+                {
+                    instLenPara.Set(castLength);
+                }
+                updateCast = inst;
             }
-            //再調整套管長度
-            if (instLenPara.AsDouble() < beamWidth)
+            catch
             {
-                instLenPara.Set(castLength);
+                errorOutput += $"更新套管長度失敗，ID為 {elem.Id} 的套管無法更新長度!\n";
+                //MessageBox.Show($"更新套管長度失敗，ID為{elem.Id}的套管無法更新長度!");
             }
-            updateCast = inst;
             return updateCast;
         }
         public Element updateCastInst(Element elem, Element linkedBeam)
         {
             FamilyInstance updateCast = null;
-            FamilyInstance inst = elem as FamilyInstance;
-            Solid beamSolid = singleSolidFromElement(linkedBeam);
-            SolidCurveIntersectionOptions options = new SolidCurveIntersectionOptions();
-            DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
-            if (null != beamSolid)
+            try
             {
-                LocationPoint instLocate = inst.Location as LocationPoint;
-                double inst_CenterZ = (inst.get_BoundingBox(null).Max.Z + inst.get_BoundingBox(null).Min.Z) / 2;
-                XYZ instPt = instLocate.Point;
-                double normal_BeamHeight = UnitUtils.ConvertToInternalUnits(1500, unitType);
-                XYZ inst_Up = new XYZ(instPt.X, instPt.Y, instPt.Z + normal_BeamHeight);
-                XYZ inst_Dn = new XYZ(instPt.X, instPt.Y, instPt.Z - normal_BeamHeight);
-                Curve instVerticalCrv = Autodesk.Revit.DB.Line.CreateBound(inst_Dn, inst_Up);
-                //這邊用solid是因為怕有斜樑需要開口的問題，但斜樑的結構應力應該已經蠻集中的，不可以再開口
-                SolidCurveIntersection intersection = beamSolid.IntersectWithCurve(instVerticalCrv, options);
-                int intersectCount = intersection.SegmentCount;
-                //針對有切割到的實體去做計算六個參數
-                if (intersectCount > 0)
+                FamilyInstance inst = elem as FamilyInstance;
+                Document document = elem.Document;
+                RevitLinkInstance targetLink = getTargetLinkedInstance(document, linkedBeam.Document.Title);
+                //MessageBox.Show(targetLink.Name);
+                Transform linkedInstTrans = targetLink.GetTotalTransform();
+                //if (!linkedInstTrans.IsIdentity)
+                //{
+                //    XYZ ori = linkedInstTrans.Origin;
+                //    MessageBox.Show(linkedInstTrans.Origin.ToString());
+                //}
+
+                Solid beamSolid = singleSolidFromElement(linkedBeam);
+                beamSolid = SolidUtils.CreateTransformed(beamSolid, linkedInstTrans);
+
+                SolidCurveIntersectionOptions options = new SolidCurveIntersectionOptions();
+                DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
+                if (null != beamSolid)
                 {
-                    string instInternalName = inst.Symbol.LookupParameter("API識別名稱").AsString();
-                    //針對有交集的實體去做計算
-                    inst.LookupParameter("【原則檢討】是否穿樑").Set("OK");
-                    //計算TOP、BOP等六個參數
-                    LocationPoint cast_Locate = inst.Location as LocationPoint;
-                    XYZ LocationPt = cast_Locate.Point;
-                    XYZ cast_Max = inst.get_BoundingBox(null).Max;
-                    XYZ cast_Min = inst.get_BoundingBox(null).Min;
-                    Curve castIntersect_Crv = intersection.GetCurveSegment(0);
-                    XYZ intersect_DN = castIntersect_Crv.GetEndPoint(0);
-                    XYZ intersect_UP = castIntersect_Crv.GetEndPoint(1);
-                    double castCenter_Z = (cast_Max.Z + cast_Min.Z) / 2;
-
-                    double TTOP_update = intersect_UP.Z - cast_Max.Z;
-                    double BTOP_update = cast_Max.Z - intersect_DN.Z;
-                    double TCOP_update = intersect_UP.Z - castCenter_Z;
-                    double BCOP_update = castCenter_Z - intersect_DN.Z;
-                    double TBOP_update = intersect_UP.Z - cast_Min.Z;
-                    double BBOP_update = cast_Min.Z - intersect_DN.Z;
-                    double TTOP_orgin = inst.LookupParameter("TTOP").AsDouble();
-                    double BBOP_orgin = inst.LookupParameter("BBOP").AsDouble();
-                    double beamHeight = intersect_UP.Z - intersect_DN.Z;
-                    double test = beamHeight * 30.48;
-                    double castHeight = cast_Max.Z - cast_Min.Z;
-
-                    double TTOP_Check = Math.Round(UnitUtils.ConvertFromInternalUnits(TTOP_update, unitType), 1);
-                    double TTOP_orginCheck = Math.Round(UnitUtils.ConvertFromInternalUnits(TTOP_orgin, unitType), 1);
-                    double BBOP_Check = Math.Round(UnitUtils.ConvertFromInternalUnits(BBOP_update, unitType), 1);
-                    double BBOP_orginCheck = Math.Round(UnitUtils.ConvertFromInternalUnits(BBOP_orgin, unitType), 1);
-
-                    if (TTOP_Check != TTOP_orginCheck || BBOP_Check != BBOP_orginCheck)
+                    LocationPoint instLocate = inst.Location as LocationPoint;
+                    double inst_CenterZ = (inst.get_BoundingBox(null).Max.Z + inst.get_BoundingBox(null).Min.Z) / 2;
+                    XYZ instPt = instLocate.Point;
+                    double normal_BeamHeight = UnitUtils.ConvertToInternalUnits(1500, unitType);
+                    XYZ inst_Up = new XYZ(instPt.X, instPt.Y, instPt.Z + normal_BeamHeight);
+                    XYZ inst_Dn = new XYZ(instPt.X, instPt.Y, instPt.Z - normal_BeamHeight);
+                    Curve instVerticalCrv = Autodesk.Revit.DB.Line.CreateBound(inst_Dn, inst_Up);
+                    //這邊用solid是因為怕有斜樑需要開口的問題，但斜樑的結構應力應該已經蠻集中的，不可以再開口
+                    SolidCurveIntersection intersection = beamSolid.IntersectWithCurve(instVerticalCrv, options);
+                    int intersectCount = intersection.SegmentCount;
+                    //針對有切割到的實體去做計算六個參數
+                    if (intersectCount > 0)
                     {
-                        inst.LookupParameter("TTOP").Set(TTOP_update);
-                        inst.LookupParameter("BTOP").Set(BTOP_update);
-                        inst.LookupParameter("TCOP").Set(TCOP_update);
-                        inst.LookupParameter("BCOP").Set(BCOP_update);
-                        inst.LookupParameter("TBOP").Set(TBOP_update);
-                        inst.LookupParameter("BBOP").Set(BBOP_update);
-                    }
-                    //寫入樑編號與樑尺寸
-                    string beamName = linkedBeam.LookupParameter("編號").AsString();
-                    string beamSIze = linkedBeam.LookupParameter("類型").AsValueString();
-                    Parameter instBeamNum = inst.LookupParameter("貫穿樑編號");
-                    Parameter instBeamSize = inst.LookupParameter("貫穿樑尺寸");
-                    if (beamName != null)
-                    {
-                        instBeamNum.Set(beamName);
-                    }
-                    else
-                    {
-                        instBeamNum.Set("無編號");
-                    }
-                    if (beamSIze != null)
-                    {
-                        instBeamSize.Set(beamSIze);
-                    }
-                    else
-                    {
-                        instBeamSize.Set("無尺寸");
-                    }
+                        string instInternalName = inst.Symbol.LookupParameter("API識別名稱").AsString();
+                        //針對有交集的實體去做計算
+                        inst.LookupParameter("【原則檢討】是否穿樑").Set("OK");
+                        //計算TOP、BOP等六個參數
+                        LocationPoint cast_Locate = inst.Location as LocationPoint;
+                        XYZ LocationPt = cast_Locate.Point;
+                        XYZ cast_Max = inst.get_BoundingBox(null).Max;
+                        XYZ cast_Min = inst.get_BoundingBox(null).Min;
+                        Curve castIntersect_Crv = intersection.GetCurveSegment(0);
+                        XYZ intersect_DN = castIntersect_Crv.GetEndPoint(0);
+                        XYZ intersect_UP = castIntersect_Crv.GetEndPoint(1);
+                        double castCenter_Z = (cast_Max.Z + cast_Min.Z) / 2;
 
-                    //設定檢核結果，在此之前感覺需要做一個找到元件寬度的程式
-                    double protectDistCheck = 0.0; //確認套管是否與保護層過近
-                    double sizeMaxCheck = 0.0; //確認套管是否過大
-                    double sizeMaxCheckW = 0.0;
-                    double sizeMaxCheckD = 0.0;
-                    double endDistCheck = 0.0; //確認套管是否與樑末端過近
-                    bool isGrider = checkGrider(linkedBeam); //確認是否為大小樑，以此作為參數更新的依據
+                        double TTOP_update = intersect_UP.Z - cast_Max.Z;
+                        double BTOP_update = cast_Max.Z - intersect_DN.Z;
+                        double TCOP_update = intersect_UP.Z - castCenter_Z;
+                        double BCOP_update = castCenter_Z - intersect_DN.Z;
+                        double TBOP_update = intersect_UP.Z - cast_Min.Z;
+                        double BBOP_update = cast_Min.Z - intersect_DN.Z;
+                        double TTOP_orgin = inst.LookupParameter("TTOP").AsDouble();
+                        double BBOP_orgin = inst.LookupParameter("BBOP").AsDouble();
+                        double beamHeight = intersect_UP.Z - intersect_DN.Z;
+                        double test = beamHeight * 30.48;
+                        double castHeight = cast_Max.Z - cast_Min.Z;
 
-                    //依照是否為大小樑，更新參數依據
-                    double C_distRatio = 0.0, C_protectRatio = 0.0, C_protectMin = 0.0, C_sizeRatio = 0.0, C_sizeMax = 0.0; ;
-                    double R_distRatio = 0.0, R_protectRatio = 0.0, R_protectMin = 0.0, R_sizeRatioD = 0.0, R_sizeRatioW = 0.0;
-                    if (isGrider)
-                    {
-                        C_distRatio = BeamCast_Settings.Default.cD1_Ratio;
-                        C_protectRatio = BeamCast_Settings.Default.cP1_Ratio;
-                        C_protectMin = BeamCast_Settings.Default.cP1_Min;
-                        C_sizeRatio = BeamCast_Settings.Default.cMax1_Ratio;
-                        C_sizeMax = BeamCast_Settings.Default.cMax1_Max;
-                        R_distRatio = BeamCast_Settings.Default.rD1_Ratio;
-                        R_protectRatio = BeamCast_Settings.Default.rP1_Ratio;
-                        R_protectMin = BeamCast_Settings.Default.rP1_Min;
-                        R_sizeRatioD = BeamCast_Settings.Default.rMax1_RatioD;
-                        R_sizeRatioW = BeamCast_Settings.Default.rMax1_RatioW;
-                    }
-                    else if (!isGrider)
-                    {
-                        C_distRatio = BeamCast_Settings.Default.cD2_Ratio;
-                        C_protectRatio = BeamCast_Settings.Default.cP2_Ratio;
-                        C_protectMin = BeamCast_Settings.Default.cP2_Min;
-                        C_sizeRatio = BeamCast_Settings.Default.cMax2_Ratio;
-                        C_sizeMax = BeamCast_Settings.Default.cMax2_Max;
-                        R_distRatio = BeamCast_Settings.Default.rD2_Ratio;
-                        R_protectRatio = BeamCast_Settings.Default.rP2_Ratio;
-                        R_protectMin = BeamCast_Settings.Default.rP2_Min;
-                        R_sizeRatioD = BeamCast_Settings.Default.rMax2_RatioD;
-                        R_sizeRatioW = BeamCast_Settings.Default.rMax2_RatioW;
-                    }
-                    List<double> parameter_Checklist = new List<double> { C_distRatio, C_protectRatio, C_sizeRatio, R_distRatio, R_protectRatio, R_sizeRatioD, R_sizeRatioW };
-                    List<double> parameter_Checklist2 = new List<double> { C_protectMin, C_sizeMax, R_protectMin };
+                        double TTOP_Check = Math.Round(UnitUtils.ConvertFromInternalUnits(TTOP_update, unitType), 1);
+                        double TTOP_orginCheck = Math.Round(UnitUtils.ConvertFromInternalUnits(TTOP_orgin, unitType), 1);
+                        double BBOP_Check = Math.Round(UnitUtils.ConvertFromInternalUnits(BBOP_update, unitType), 1);
+                        double BBOP_orginCheck = Math.Round(UnitUtils.ConvertFromInternalUnits(BBOP_orgin, unitType), 1);
 
-
-                    bool isCircleCast = instInternalName.Contains("圓");
-
-                    //前面已經檢查過是否為大小樑，在此檢查是方孔還圓孔，比例係數不同
-                    //如果套管為圓形
-                    if (isCircleCast)
-                    {
-                        //上下邊距警告值
-                        protectDistCheck = C_protectRatio * beamHeight;
-                        double tempProtectValue = UnitUtils.ConvertToInternalUnits(C_protectMin, unitType);
-                        if (tempProtectValue > protectDistCheck) protectDistCheck = tempProtectValue;
-
-                        //最大尺寸警告值
-                        sizeMaxCheck = C_sizeRatio * beamHeight;
-                        double tempSizeValue = UnitUtils.ConvertToInternalUnits(C_sizeMax, unitType);
-                        if (tempSizeValue < sizeMaxCheck && tempSizeValue != 0) sizeMaxCheck = tempSizeValue;
-
-                        //樑兩端警告值
-                        endDistCheck = C_distRatio * beamHeight;
-                    }
-                    //如果套管為方形
-                    else if (!isCircleCast)
-                    {
-                        //上下邊距警告值
-                        protectDistCheck = R_protectRatio * beamHeight;
-                        double tempProtectValue = UnitUtils.ConvertToInternalUnits(R_protectMin, unitType);
-                        if (tempProtectValue < protectDistCheck) protectDistCheck = tempProtectValue;
-
-                        //最大尺寸警告值
-                        sizeMaxCheckW = R_sizeRatioW * beamHeight;
-                        sizeMaxCheckD = R_sizeRatioD * beamHeight;
-
-                        //樑兩端警告值
-                        endDistCheck = R_distRatio * beamHeight;
-                    }
-
-                    //檢查是否穿樑
-                    List<double> updateParas = new List<double> { TTOP_update, BTOP_update, TCOP_update, BCOP_update, TBOP_update, BBOP_update };
-                    foreach (double d in updateParas)
-                    {
-                        if (d < 0)
+                        if (TTOP_Check != TTOP_orginCheck || BBOP_Check != BBOP_orginCheck)
                         {
-                            inst.LookupParameter("【原則檢討】是否穿樑").Set("不符合");
+                            inst.LookupParameter("TTOP").Set(TTOP_update);
+                            inst.LookupParameter("BTOP").Set(BTOP_update);
+                            inst.LookupParameter("TCOP").Set(TCOP_update);
+                            inst.LookupParameter("BCOP").Set(BCOP_update);
+                            inst.LookupParameter("TBOP").Set(TBOP_update);
+                            inst.LookupParameter("BBOP").Set(BBOP_update);
+                        }
+                        //寫入樑編號與樑尺寸
+                        string beamName = linkedBeam.LookupParameter("編號").AsString();
+                        string beamSIze = linkedBeam.LookupParameter("類型").AsValueString();
+                        Parameter instBeamNum = inst.LookupParameter("貫穿樑編號");
+                        Parameter instBeamSize = inst.LookupParameter("貫穿樑尺寸");
+                        if (beamName != null)
+                        {
+                            instBeamNum.Set(beamName);
+                        }
+                        else
+                        {
                             instBeamNum.Set("無編號");
+                        }
+                        if (beamSIze != null)
+                        {
+                            instBeamSize.Set(beamSIze);
+                        }
+                        else
+                        {
                             instBeamSize.Set("無尺寸");
                         }
-                    }
-                    //檢查是否過大
-                    Parameter sizeCheckPara = inst.LookupParameter("【原則檢討】尺寸檢討");
-                    if (isCircleCast)
-                    {
 
-                        double castSize = getCastWidth(inst);
-                        if (castSize > sizeMaxCheck) sizeCheckPara.Set("不符合");
-                        else sizeCheckPara.Set("OK");
-                    }
-                    else if (!isCircleCast)
-                    {
-                        double castSizeW = getCastWidth(inst);
-                        double castSizeD = getCastHeight(inst);
-                        if (castSizeW > sizeMaxCheckW || castSizeD > sizeMaxCheckD) sizeCheckPara.Set("不符合");
-                        else sizeCheckPara.Set("OK");
-                    }
+                        //設定檢核結果，在此之前感覺需要做一個找到元件寬度的程式
+                        double protectDistCheck = 0.0; //確認套管是否與保護層過近
+                        double sizeMaxCheck = 0.0; //確認套管是否過大
+                        double sizeMaxCheckW = 0.0;
+                        double sizeMaxCheckD = 0.0;
+                        double endDistCheck = 0.0; //確認套管是否與樑末端過近
+                        bool isGrider = checkGrider(linkedBeam); //確認是否為大小樑，以此作為參數更新的依據
 
-                    //檢查上下部包護層
-                    Parameter protectionCheckPara_UP = inst.LookupParameter("【原則檢討】上部檢討");
-                    Parameter protectionCheckPara_DN = inst.LookupParameter("【原則檢討】下部檢討");
-                    if (TTOP_update < protectDistCheck)
-                    {
-                        protectionCheckPara_UP.Set("不符合");
-                    }
-                    else
-                    {
-                        protectionCheckPara_UP.Set("OK");
-                    }
-                    if (BBOP_update < protectDistCheck)
-                    {
-                        protectionCheckPara_DN.Set("不符合");
-                    }
-                    else
-                    {
-                        protectionCheckPara_DN.Set("OK");
-                    }
-
-                    //檢查套管是否離樑的兩端過近
-                    Parameter endCheckPara = inst.LookupParameter("【原則檢討】樑端檢討");
-                    LocationCurve tempLocateCrv = linkedBeam.Location as LocationCurve;
-                    Curve targetCrv = tempLocateCrv.Curve;
-                    XYZ tempStart = targetCrv.GetEndPoint(0);
-                    XYZ tempEnd = targetCrv.GetEndPoint(1);
-                    XYZ startPt = new XYZ(tempStart.X, tempStart.Y, instPt.Z);
-                    XYZ endPt = new XYZ(tempEnd.X, tempEnd.Y, instPt.Z);
-                    List<XYZ> points = new List<XYZ>() { startPt, endPt };
-                    List<double> distLIst = new List<double>();
-                    foreach (XYZ pt in points)
-                    {
-                        double distToBeamEnd = instPt.DistanceTo(pt);
-                        distLIst.Add(distToBeamEnd);
-                    }
-                    if (distLIst.Min() - getCastWidth(elem) / 2 < endDistCheck)
-                    {
-                        endCheckPara.Set("不符合");
-                    }
-                    else if (distLIst.Min() - getCastHeight(elem) / 2 > endDistCheck)
-                    {
-                        endCheckPara.Set("OK");
-                    }
-                }
-                else if (intersectCount == 0)
-                {
-                    inst.LookupParameter("【原則檢討】是否穿樑").Set("不符合");
-                    inst.LookupParameter("貫穿樑編號").Set("無編號");
-                    inst.LookupParameter("貫穿樑尺寸").Set("無尺寸");
-                }
-
-                //與其他穿樑套管之間的距離檢討
-                List<FamilyInstance> tempList = findTargetElements(elem.Document);
-                List<double> distList = new List<double>();
-                double baseWidth = getCastWidth(elem);
-                foreach (FamilyInstance e in tempList)
-                {
-                    //自己跟自己不用算
-                    if (e.Id == elem.Id)
-                    {
-                        continue;
-                    }
-                    //同一層的才要進行距離檢討與計算
-                    else if (e.LevelId == elem.LevelId)
-                    {
-                        double targetWidth = getCastWidth(e);
-                        double distCheck = baseWidth + targetWidth;
-                        LocationPoint baseLocate = elem.Location as LocationPoint;
-                        XYZ basePt = baseLocate.Point;
-                        LocationPoint targetLocate = e.Location as LocationPoint;
-                        XYZ targetPt = targetLocate.Point;
-                        XYZ adjustPt = new XYZ(targetPt.X, targetPt.Y, basePt.Z);
-                        double dist = basePt.DistanceTo(adjustPt);
-                        if (dist / 1.5 < distCheck)
+                        //依照是否為大小樑，更新參數依據
+                        double C_distRatio = 0.0, C_protectRatio = 0.0, C_protectMin = 0.0, C_sizeRatio = 0.0, C_sizeMax = 0.0; ;
+                        double R_distRatio = 0.0, R_protectRatio = 0.0, R_protectMin = 0.0, R_sizeRatioD = 0.0, R_sizeRatioW = 0.0;
+                        if (isGrider)
                         {
-                            distList.Add(dist);
+                            C_distRatio = BeamCast_Settings.Default.cD1_Ratio;
+                            C_protectRatio = BeamCast_Settings.Default.cP1_Ratio;
+                            C_protectMin = BeamCast_Settings.Default.cP1_Min;
+                            C_sizeRatio = BeamCast_Settings.Default.cMax1_Ratio;
+                            C_sizeMax = BeamCast_Settings.Default.cMax1_Max;
+                            R_distRatio = BeamCast_Settings.Default.rD1_Ratio;
+                            R_protectRatio = BeamCast_Settings.Default.rP1_Ratio;
+                            R_protectMin = BeamCast_Settings.Default.rP1_Min;
+                            R_sizeRatioD = BeamCast_Settings.Default.rMax1_RatioD;
+                            R_sizeRatioW = BeamCast_Settings.Default.rMax1_RatioW;
+                        }
+                        else if (!isGrider)
+                        {
+                            C_distRatio = BeamCast_Settings.Default.cD2_Ratio;
+                            C_protectRatio = BeamCast_Settings.Default.cP2_Ratio;
+                            C_protectMin = BeamCast_Settings.Default.cP2_Min;
+                            C_sizeRatio = BeamCast_Settings.Default.cMax2_Ratio;
+                            C_sizeMax = BeamCast_Settings.Default.cMax2_Max;
+                            R_distRatio = BeamCast_Settings.Default.rD2_Ratio;
+                            R_protectRatio = BeamCast_Settings.Default.rP2_Ratio;
+                            R_protectMin = BeamCast_Settings.Default.rP2_Min;
+                            R_sizeRatioD = BeamCast_Settings.Default.rMax2_RatioD;
+                            R_sizeRatioW = BeamCast_Settings.Default.rMax2_RatioW;
+                        }
+                        List<double> parameter_Checklist = new List<double> { C_distRatio, C_protectRatio, C_sizeRatio, R_distRatio, R_protectRatio, R_sizeRatioD, R_sizeRatioW };
+                        List<double> parameter_Checklist2 = new List<double> { C_protectMin, C_sizeMax, R_protectMin };
+
+
+                        bool isCircleCast = instInternalName.Contains("圓");
+
+                        //前面已經檢查過是否為大小樑，在此檢查是方孔還圓孔，比例係數不同
+                        //如果套管為圓形
+                        if (isCircleCast)
+                        {
+                            //上下邊距警告值
+                            protectDistCheck = C_protectRatio * beamHeight;
+                            double tempProtectValue = UnitUtils.ConvertToInternalUnits(C_protectMin, unitType);
+                            if (tempProtectValue > protectDistCheck) protectDistCheck = tempProtectValue;
+
+                            //最大尺寸警告值
+                            sizeMaxCheck = C_sizeRatio * beamHeight;
+                            double tempSizeValue = UnitUtils.ConvertToInternalUnits(C_sizeMax, unitType);
+                            if (tempSizeValue < sizeMaxCheck && tempSizeValue != 0) sizeMaxCheck = tempSizeValue;
+
+                            //樑兩端警告值
+                            endDistCheck = C_distRatio * beamHeight;
+                        }
+                        //如果套管為方形
+                        else if (!isCircleCast)
+                        {
+                            //上下邊距警告值
+                            protectDistCheck = R_protectRatio * beamHeight;
+                            double tempProtectValue = UnitUtils.ConvertToInternalUnits(R_protectMin, unitType);
+                            if (tempProtectValue < protectDistCheck) protectDistCheck = tempProtectValue;
+
+                            //最大尺寸警告值
+                            sizeMaxCheckW = R_sizeRatioW * beamHeight;
+                            sizeMaxCheckD = R_sizeRatioD * beamHeight;
+
+                            //樑兩端警告值
+                            endDistCheck = R_distRatio * beamHeight;
+                        }
+
+                        //檢查是否穿樑
+                        List<double> updateParas = new List<double> { TTOP_update, BTOP_update, TCOP_update, BCOP_update, TBOP_update, BBOP_update };
+                        foreach (double d in updateParas)
+                        {
+                            if (d < 0)
+                            {
+                                inst.LookupParameter("【原則檢討】是否穿樑").Set("不符合");
+                                instBeamNum.Set("無編號");
+                                instBeamSize.Set("無尺寸");
+                            }
+                        }
+                        //檢查是否過大
+                        Parameter sizeCheckPara = inst.LookupParameter("【原則檢討】尺寸檢討");
+                        if (isCircleCast)
+                        {
+
+                            double castSize = getCastWidth(inst);
+                            if (castSize > sizeMaxCheck) sizeCheckPara.Set("不符合");
+                            else sizeCheckPara.Set("OK");
+                        }
+                        else if (!isCircleCast)
+                        {
+                            double castSizeW = getCastWidth(inst);
+                            double castSizeD = getCastHeight(inst);
+                            if (castSizeW > sizeMaxCheckW || castSizeD > sizeMaxCheckD) sizeCheckPara.Set("不符合");
+                            else sizeCheckPara.Set("OK");
+                        }
+
+                        //檢查上下部包護層
+                        Parameter protectionCheckPara_UP = inst.LookupParameter("【原則檢討】上部檢討");
+                        Parameter protectionCheckPara_DN = inst.LookupParameter("【原則檢討】下部檢討");
+                        if (TTOP_update < protectDistCheck)
+                        {
+                            protectionCheckPara_UP.Set("不符合");
+                        }
+                        else
+                        {
+                            protectionCheckPara_UP.Set("OK");
+                        }
+                        if (BBOP_update < protectDistCheck)
+                        {
+                            protectionCheckPara_DN.Set("不符合");
+                        }
+                        else
+                        {
+                            protectionCheckPara_DN.Set("OK");
+                        }
+
+                        //檢查套管是否離樑的兩端過近
+                        Parameter endCheckPara = inst.LookupParameter("【原則檢討】樑端檢討");
+                        LocationCurve tempLocateCrv = linkedBeam.Location as LocationCurve;
+                        Curve targetCrv = tempLocateCrv.Curve;
+                        XYZ tempStart = targetCrv.GetEndPoint(0);
+                        XYZ tempEnd = targetCrv.GetEndPoint(1);
+                        XYZ startPt = new XYZ(tempStart.X, tempStart.Y, instPt.Z);
+                        XYZ endPt = new XYZ(tempEnd.X, tempEnd.Y, instPt.Z);
+                        List<XYZ> points = new List<XYZ>() { startPt, endPt };
+                        List<double> distLIst = new List<double>();
+                        foreach (XYZ pt in points)
+                        {
+                            double distToBeamEnd = instPt.DistanceTo(pt);
+                            distLIst.Add(distToBeamEnd);
+                        }
+                        if (distLIst.Min() - getCastWidth(elem) / 2 < endDistCheck)
+                        {
+                            endCheckPara.Set("不符合");
+                        }
+                        else if (distLIst.Min() - getCastHeight(elem) / 2 > endDistCheck)
+                        {
+                            endCheckPara.Set("OK");
                         }
                     }
-                }
-                if (distList.Count > 0)
-                {
-                    inst.LookupParameter("【原則檢討】邊距檢討").Set("不符合");
-                }
-                else
-                {
-                    inst.LookupParameter("【原則檢討】邊距檢討").Set("OK");
-                }
-                updateCast = inst;
-            }
-            else if (null == beamSolid)
-            {
-                MessageBox.Show($"來自{linkedBeam.Document.Title}，編號{linkedBeam.Id}的樑，無法創造一個完整的實體，因此無法更新該樑內的套管");
-            }
+                    else if (intersectCount == 0)
+                    {
+                        inst.LookupParameter("【原則檢討】是否穿樑").Set("不符合");
+                        inst.LookupParameter("貫穿樑編號").Set("無編號");
+                        inst.LookupParameter("貫穿樑尺寸").Set("無尺寸");
+                    }
 
+                    //與其他穿樑套管之間的距離檢討
+                    List<FamilyInstance> tempList = findTargetElements(elem.Document);
+                    List<double> distList = new List<double>();
+                    double baseWidth = getCastWidth(elem);
+                    foreach (FamilyInstance e in tempList)
+                    {
+                        //自己跟自己不用算
+                        if (e.Id == elem.Id)
+                        {
+                            continue;
+                        }
+                        //同一層的才要進行距離檢討與計算
+                        else if (e.LevelId == elem.LevelId)
+                        {
+                            double targetWidth = getCastWidth(e);
+                            double distCheck = baseWidth + targetWidth;
+                            LocationPoint baseLocate = elem.Location as LocationPoint;
+                            XYZ basePt = baseLocate.Point;
+                            LocationPoint targetLocate = e.Location as LocationPoint;
+                            XYZ targetPt = targetLocate.Point;
+                            XYZ adjustPt = new XYZ(targetPt.X, targetPt.Y, basePt.Z);
+                            double dist = basePt.DistanceTo(adjustPt);
+                            if (dist / 1.5 < distCheck)
+                            {
+                                distList.Add(dist);
+                            }
+                        }
+                    }
+                    if (distList.Count > 0)
+                    {
+                        inst.LookupParameter("【原則檢討】邊距檢討").Set("不符合");
+                    }
+                    else
+                    {
+                        inst.LookupParameter("【原則檢討】邊距檢討").Set("OK");
+                    }
+                    updateCast = inst;
+                }
+                else if (null == beamSolid)
+                {
+                    MessageBox.Show($"來自{linkedBeam.Document.Title}，編號{linkedBeam.Id}的樑，無法創造一個完整的實體，因此無法更新該樑內的套管");
+                }
+            }
+            catch
+            {
+                errorOutput += $"更新套管資訊失敗，ID為 {elem.Id} 的套管無法更新資訊!\n";
+                //MessageBox.Show($"穿樑套管資訊更新失敗，ID為{elem.Id}的套管無法更新!");
+            }
             return updateCast;
         }
         public Element updateCastContent(Document doc, Element elem)
         {
             FamilyInstance updateCast = null;
-            List<string> systemName = new List<string>() { "E", "T", "W", "P", "F", "A", "G" };
-            FamilyInstance inst = elem as FamilyInstance;
-            FilteredElementCollector pipeCollector = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipeCurves);
-            BoundingBoxXYZ castBounding = inst.get_BoundingBox(null);
-            Outline castOutline = new Outline(castBounding.Min, castBounding.Max);
-            BoundingBoxIntersectsFilter boxIntersectsFilter = new BoundingBoxIntersectsFilter(castOutline);
-            Solid castSolid = singleSolidFromElement(inst);
-            ElementIntersectsSolidFilter solidFilter = new ElementIntersectsSolidFilter(castSolid);
-            pipeCollector.WherePasses(boxIntersectsFilter).WherePasses(solidFilter);
-            inst.LookupParameter("干涉管數量").Set(pipeCollector.Count());
-            if (pipeCollector.Count() == 0)
+            try
             {
-                inst.LookupParameter("系統別").Set("未指定");
-            }
-            //針對蒐集到的管去做系統別的更新
-            if (pipeCollector.Count() == 1)
-            {
-                string pipeSystem = pipeCollector.First().get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsValueString();
-                string shortSystemName = pipeSystem.Substring(0, 1);//以開頭的前綴字抓系統縮寫
-                if (systemName.Contains(shortSystemName))
+                List<string> systemName = new List<string>() { "E", "T", "W", "P", "F", "A", "G" };
+                FamilyInstance inst = elem as FamilyInstance;
+                BuiltInCategory[] builts =
                 {
-                    inst.LookupParameter("系統別").Set(shortSystemName);
+            BuiltInCategory.OST_PipeCurves,
+            BuiltInCategory.OST_Conduit,
+            BuiltInCategory.OST_DuctCurves
+            };
+                List<ElementFilter> filters = new List<ElementFilter>();
+                foreach (BuiltInCategory built in builts)
+                {
+                    ElementCategoryFilter filter = new ElementCategoryFilter(built);
+                    filters.Add(filter);
+                }
+                LogicalOrFilter categoryFilter = new LogicalOrFilter(filters);
+                FilteredElementCollector pipeCollector = new FilteredElementCollector(doc).WherePasses(categoryFilter);
+                BoundingBoxXYZ castBounding = inst.get_BoundingBox(null);
+                Outline castOutline = new Outline(castBounding.Min, castBounding.Max);
+                BoundingBoxIntersectsFilter boxIntersectsFilter = new BoundingBoxIntersectsFilter(castOutline);
+                Solid castSolid = singleSolidFromElement(inst);
+                ElementIntersectsSolidFilter solidFilter = new ElementIntersectsSolidFilter(castSolid);
+                pipeCollector.WherePasses(boxIntersectsFilter).WherePasses(solidFilter);
+                Parameter systemType = inst.LookupParameter("系統別");
+
+                List<RevitLinkInstance> otherMEP = getMEPLinkInstance(doc);
+                List<Element> pipeCollector_final = new List<Element>();
+                if (pipeCollector.Count() == 0)
+                {
+                    systemType.Set("未指定");
+                }
+                //將本機端蒐集到的管放進list
+                foreach (Element e in pipeCollector)
+                {
+                    pipeCollector_final.Add(e);
+                }
+                //foreach(RevitLinkInstance link in otherMEP)
+                //{
+                //    MessageBox.Show(link.GetLinkDocument().Title);
+                //}
+
+                //針對每一個實做的外參，蒐集管段後加入list
+                foreach (RevitLinkInstance linkInst in otherMEP)
+                {
+                    //座標變換，因為抓法的關係，要轉換成外參檔「原本」的座標
+                    Transform trans = linkInst.GetTotalTransform();
+                    Transform inverseTransform = trans.Inverse;
+                    Document linkdoc = linkInst.GetLinkDocument();
+                    if (linkdoc != null)
+                    {
+                        Solid CSDsolid = SolidUtils.CreateTransformed(castSolid, inverseTransform);
+                        ElementIntersectsSolidFilter solidFilter_CSD = new ElementIntersectsSolidFilter(CSDsolid);
+                        BoundingBoxXYZ solidBounding = CSDsolid.GetBoundingBox();
+                        XYZ solidCenter = CSDsolid.ComputeCentroid();
+                        Transform newTrans = Transform.Identity;
+                        newTrans.Origin = solidCenter;
+                        Outline outLine = new Outline(newTrans.OfPoint(solidBounding.Min), newTrans.OfPoint(solidBounding.Max));
+                        BoundingBoxIntersectsFilter boxIntersectsFilter_CSD = new BoundingBoxIntersectsFilter(outLine);
+                        FilteredElementCollector CSDcollector = new FilteredElementCollector(linkdoc).WherePasses(categoryFilter).WherePasses(boxIntersectsFilter_CSD).WherePasses(solidFilter_CSD);
+
+                        if (CSDcollector.Count() > 0)
+                        {
+                            foreach (Element e in CSDcollector)
+                            {
+                                pipeCollector_final.Add(e);
+                            }
+                        }
+                    }
+                }
+                inst.LookupParameter("干涉管數量").Set(pipeCollector_final.Count());
+                //針對蒐集到的管去做系統別的更新，因為電管沒有系統類型，要和管分開處理
+                if (pipeCollector_final.Count() == 1)
+                {
+                    if (pipeCollector_final.First().Category.Name == "電管")
+                    {
+                        systemType.Set("E");
+                    }
+                    else
+                    {
+                        Element targetPipe = pipeCollector_final.First();
+                        string pipeSystem = null;
+                        if (targetPipe.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM) != null)
+                        {
+                            pipeSystem = targetPipe.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsValueString();
+                        }
+                        else if (targetPipe.get_Parameter(BuiltInParameter.RBS_DUCT_SYSTEM_TYPE_PARAM) != null)
+                        {
+                            pipeSystem = targetPipe.get_Parameter(BuiltInParameter.RBS_DUCT_SYSTEM_TYPE_PARAM).AsValueString();
+                        }
+                        string shortSystemName = pipeSystem.Substring(0, 1);//以開頭的前綴字抓系統縮寫
+                        if (systemName.Contains(shortSystemName))
+                        {
+                            systemType.Set(shortSystemName);
+                        }
+                        else if (pipeSystem.Contains("空調"))
+                        {
+                            systemType.Set("A");
+                        }
+                        else
+                        {
+                            systemType.Set("未指定");
+                        }
+                    }
+                }
+                //如果有共管的狀況
+                else if (pipeCollector_final.Count() >= 2)
+                {
+                    List<int> isPipe = new List<int>();
+                    List<string> shortNameList = new List<string>();
+                    foreach (Element pipe in pipeCollector_final)
+                    {
+                        if (pipe.Category.Name == "電管")
+                        {
+                            isPipe.Add(0);
+                            shortNameList.Add("E");
+                        }
+                        else if (pipe.Category.Name == "管")
+                        {
+                            isPipe.Add(1);
+                            string pipeSystem = pipe.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsValueString();
+                            string shortSystemName = pipeSystem.Substring(0, 1);//以開頭的前綴字抓系統縮寫
+                            shortNameList.Add(shortSystemName);
+                        }
+                        else if (pipe.Category.Name == "風管")
+                        {
+                            isPipe.Add(2);
+                            string pipeSystem = pipe.get_Parameter(BuiltInParameter.RBS_DUCT_SYSTEM_TYPE_PARAM).AsValueString();
+                            string shortSystemName = pipeSystem.Substring(0, 1);//以開頭的前綴字抓系統縮寫
+                            //shortNameList.Add(shortSystemName);
+                            shortNameList.Add(shortSystemName);
+                        }
+                    }
+                    List<int> newTypeList = isPipe.Distinct().ToList();
+                    List<string> newList = shortNameList.Distinct().ToList();
+                    //先用類別判斷，在用是否共管判斷，就算共管，如果同系統還是得寫一樣的縮寫名稱
+                    if (newTypeList.Count() == 1 && newTypeList.First() == 0)
+                    {
+                        systemType.Set("E");
+                    }
+                    else if (newTypeList.Count() >= 1 /*&& newTypeList.First() == true*/)
+                    {
+                        //因為剛好空調也叫M，才需要特別處理
+                        if (newList.Count() == 1 && newList.Contains("M"))
+                        {
+                            //systemType.Set(newList.First());
+                            systemType.Set("A");
+                        }
+                        //如果為不同系統共管，則設為M
+                        else if (newList.Count() > 1)
+                        {
+                            systemType.Set("M");
+                        }
+                    }
+                    //else if (newTypeList.Count() > 1)
+                    //{
+                    //    systemType.Set("M");
+                    //}
+                }
+                updateCast = inst;
+            }
+            catch
+            {
+                errorOutput += $"套管干涉檢查失敗，ID為 {elem.Id} 的套管無法順利檢查\n";
+                //MessageBox.Show($"穿樑套管干涉檢查失敗，ID為{elem.Id}的套管無法順利檢查!");
+            }
+            return updateCast;
+        }
+        public Element updateCastMaterial(Element elem, Element linkedBeam)
+        {
+            FamilyInstance updateCast = null;
+            try
+            {
+                Parameter materialPara = null;
+                bool check = false;
+
+                FamilyInstance tempInst = elem as FamilyInstance;
+                FamilyInstance tempBeam = linkedBeam as FamilyInstance;
+                string instNameCheck = tempInst.Symbol.LookupParameter("API識別名稱").AsString();
+                string tempBeamMaterial = tempBeam.StructuralMaterialType.ToString();
+                if (checkPara(elem, "貫穿樑材料"))
+                {
+                    materialPara = elem.LookupParameter("貫穿樑材料");
+                    check = true;
+                }
+                else if (!check)
+                {
+                    MessageBox.Show("請檢查元件是否有「貫穿樑材料」參數欄位");
+                }
+                if (instNameCheck.Contains("開口") && tempBeamMaterial == "Steel")
+                {
+                    materialPara.Set("ST開口");
+                }
+                else if (instNameCheck.Contains("套管") && tempBeamMaterial == "Concrete")
+                {
+                    materialPara.Set("RC套管");
                 }
                 else
                 {
-                    inst.LookupParameter("系統別").Set("未指定");
+                    materialPara.Set("不符合");
                 }
+                updateCast = tempInst;
             }
-            //如果有共管的狀況
-            else if (pipeCollector.Count() >= 2)
+            catch
             {
-                List<string> shortNameList = new List<string>();
-                foreach (Element pipe in pipeCollector)
+                errorOutput += $"貫穿樑材料更新失敗，ID為 {elem.Id} 的套管無法順利更新\n";
+                //MessageBox.Show($"貫穿樑材料更新失敗，ID為{elem.Id}的套管無法順利更新!");
+            }
+            return updateCast;
+        }
+        public List<RevitLinkInstance> getMEPLinkInstance(Document doc)
+        {
+            List<RevitLinkInstance> linkInstanceList = new List<RevitLinkInstance>();
+            FilteredElementCollector linkCollector = new FilteredElementCollector(doc).OfClass(typeof(RevitLinkInstance));
+            //製作針對管、風管、電管的過濾器
+            BuiltInCategory[] builts =
+            {
+            BuiltInCategory.OST_PipeCurves,
+            BuiltInCategory.OST_Conduit,
+            BuiltInCategory.OST_DuctCurves
+            };
+            List<ElementFilter> filters = new List<ElementFilter>();
+            foreach (BuiltInCategory built in builts)
+            {
+                ElementCategoryFilter filter = new ElementCategoryFilter(built);
+                filters.Add(filter);
+            }
+            LogicalOrFilter categoryFilter = new LogicalOrFilter(filters);
+            foreach (RevitLinkInstance linkInst in linkCollector)
+            {
+                Document linkDoc = linkInst.GetLinkDocument();
+                if (linkDoc != null)
                 {
-                    string pipeSystem = pipe.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsValueString();
-                    string shortSystemName = pipeSystem.Substring(0, 1);//以開頭的前綴字抓系統縮寫
-                    shortNameList.Add(shortSystemName);
-                    List<string> newList = shortNameList.Distinct().ToList();
-                    //就算共管，如果同系統還是得寫一樣的縮寫名稱
-                    if (newList.Count() == 1)
-                    {
-                        inst.LookupParameter("系統別").Set(newList.First());
-                    }
-                    //如果為不同系統共管，則設為M
-                    else if (newList.Count() > 1)
-                    {
-                        inst.LookupParameter("系統別").Set("M");
-                    }
+                    FilteredElementCollector coll = new FilteredElementCollector(linkDoc).WherePasses(categoryFilter).WhereElementIsNotElementType();
+                    if (coll.Count() > 0) linkInstanceList.Add(linkInst);
                 }
             }
-            updateCast = inst;
-            return updateCast;
+            return linkInstanceList;
         }
     }
 }

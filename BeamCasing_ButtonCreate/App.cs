@@ -31,7 +31,8 @@ namespace BeamCasing_ButtonCreate
             try
             {
                 a.CreateRibbonTab(RIBBON_TAB);
-            }catch (Exception) { } //tab alreadt exists
+            }
+            catch (Exception) { } //tab alreadt exists
             RibbonPanel panel = null;
             List<RibbonPanel> panels = a.GetRibbonPanels(RIBBON_TAB); //在此要確保RIBBON_TAB在這行之前已經被創建
             foreach (RibbonPanel pnl in panels)
@@ -61,12 +62,20 @@ namespace BeamCasing_ButtonCreate
             System.Drawing.Image image_SetUp = Properties.Resources.穿樑套管ICON合集_設定;
             ImageSource imgSrc3 = GetImageSource(image_SetUp);
 
+
+            System.Drawing.Image image_Num = Properties.Resources.穿樑套管ICON合集_編號2;
+            ImageSource imgSrc4 = GetImageSource(image_Num);
+
+
+            System.Drawing.Image image_ReNum = Properties.Resources.穿樑套管ICON合集_重編號2;
+            ImageSource imgSrc5 = GetImageSource(image_ReNum);
+
             // create the button data
             PushButtonData btnData0 = new PushButtonData(
              "MyButton_CastCreateST",
              "創建\n   ST穿樑套管   ",
              Assembly.GetExecutingAssembly().Location,
-             "BeamCasing_ButtonCreate.CreateBeamCastST"//按鈕的全名-->要依照需要參照的command打入
+             "BeamCasing_ButtonCreate.CreateBeamCastSTV2"//按鈕的全名-->要依照需要參照的command打入
              );
             {
                 btnData0.ToolTip = "點選外參樑與管生成穿樑開口";
@@ -78,7 +87,7 @@ namespace BeamCasing_ButtonCreate
                 "MyButton_CastCreate",
                 "創建\n   RC穿樑套管   ",
                 Assembly.GetExecutingAssembly().Location,
-                "BeamCasing_ButtonCreate.CreateBeamCast"//按鈕的全名-->要依照需要參照的command打入
+                "BeamCasing_ButtonCreate.CreateBeamCastV2"//按鈕的全名-->要依照需要參照的command打入
                 );
             {
                 btnData.ToolTip = "點選外參樑與管生成穿樑套管";
@@ -88,7 +97,7 @@ namespace BeamCasing_ButtonCreate
 
 
             PushButtonData btnData2 = new PushButtonData(
-                "MyButton_CastUpdate", 
+                "MyButton_CastUpdate",
                 "更新\n   穿樑資訊   ",
                 Assembly.GetExecutingAssembly().Location,
                 "BeamCasing_ButtonCreate.CastInfromUpdateV4"
@@ -100,7 +109,7 @@ namespace BeamCasing_ButtonCreate
             }
 
             PushButtonData btnData3 = new PushButtonData(
-                "MyButton_CastSetUp", 
+                "MyButton_CastSetUp",
                 "設定\n   穿樑原則   ",
                 Assembly.GetExecutingAssembly().Location,
                 "BeamCasing_ButtonCreate.BeamCastSetUp"
@@ -110,15 +119,48 @@ namespace BeamCasing_ButtonCreate
                 btnData3.LongDescription = "依據專案需求，設定本案的穿樑原則資訊";
                 btnData3.LargeImage = imgSrc3;
             }
+
+            PushButtonData btnData4 = new PushButtonData(
+    "MyButton_CastNum",
+    "穿樑套管\n   編號   ",
+    Assembly.GetExecutingAssembly().Location,
+    "BeamCasing_ButtonCreate.UpdateCastNumber"
+    );
+            {
+                btnData4.ToolTip = "穿樑套管自動編號";
+                btnData4.LongDescription = "根據每層樓的開口數量與位置，依序自動帶入編號，第二次上入編號時則會略過已經填入編號的套管";
+                btnData4.LargeImage = imgSrc4;
+            }
+
+            PushButtonData btnData5 = new PushButtonData(
+"MyButton_ReNum",
+"穿樑套管\n   重新編號   ",
+Assembly.GetExecutingAssembly().Location,
+"BeamCasing_ButtonCreate.ReUpdateCastNumber"
+);
+            {
+                btnData5.ToolTip = "穿樑套管重新編號";
+                btnData5.LongDescription = "根據每層樓的開口數量，重新帶入編號";
+                btnData5.LargeImage = imgSrc5;
+            }
+
             PushButton button0 = panel.AddItem(btnData0) as PushButton;
             PushButton button = panel.AddItem(btnData) as PushButton;
             PushButton button2 = panel.AddItem(btnData2) as PushButton;
             PushButton button3 = panel.AddItem(btnData3) as PushButton;
+            PushButton button4 = panel.AddItem(btnData4) as PushButton;
+            PushButton button5 = panel.AddItem(btnData5) as PushButton;
+            //PulldownButtonData pulldownButtonData = new PulldownButtonData("MyButton_Num", "套管編號");
+            //pulldownButtonData.Image
+            //PulldownButton pulldownGroup = panel.AddItem(pulldownButtonData) as PulldownButton;
+            //PushButton button4= pulldownGroup.AddPushButton(btnData4) as PushButton;
+            //PushButton button5 = pulldownGroup.AddPushButton(btnData5) as PushButton;
             button0.Enabled = true;
             button.Enabled = true;
             button2.Enabled = true;
             button3.Enabled = true;
-
+            button4.Enabled = true;
+            button5.Enabled = true;
             //adWin.RibbonControl ribbon = adWin.ComponentManager.Ribbon;
             //找到TAB名稱之後再製作button
             //foreach (adWin.RibbonTab tab in ribbon.Tabs)
