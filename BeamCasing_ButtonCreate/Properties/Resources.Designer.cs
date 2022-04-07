@@ -73,6 +73,16 @@ namespace BeamCasing_ButtonCreate.Properties {
         /// <summary>
         ///   查詢類型 System.Drawing.Bitmap 的當地語系化資源。
         /// </summary>
+        internal static System.Drawing.Bitmap 副穿樑套管ICON合集_複製 {
+            get {
+                object obj = ResourceManager.GetObject("副穿樑套管ICON合集_複製", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   查詢類型 System.Drawing.Bitmap 的當地語系化資源。
+        /// </summary>
         internal static System.Drawing.Bitmap 穿樑原則圖說_01 {
             get {
                 object obj = ResourceManager.GetObject("穿樑原則圖說_01", resourceCulture);
@@ -86,6 +96,26 @@ namespace BeamCasing_ButtonCreate.Properties {
         internal static System.Drawing.Bitmap 穿樑原則圖說_02 {
             get {
                 object obj = ResourceManager.GetObject("穿樑原則圖說_02", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   查詢類型 System.Drawing.Bitmap 的當地語系化資源。
+        /// </summary>
+        internal static System.Drawing.Bitmap 穿樑原則示意修正_01 {
+            get {
+                object obj = ResourceManager.GetObject("穿樑原則示意修正_01", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   查詢類型 System.Drawing.Bitmap 的當地語系化資源。
+        /// </summary>
+        internal static System.Drawing.Bitmap 穿樑原則示意修正_02 {
+            get {
+                object obj = ResourceManager.GetObject("穿樑原則示意修正_02", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
             }
         }

@@ -60,8 +60,8 @@ namespace BeamCasing_ButtonCreate
                                     num++;
                                 }
                             }
-                            trans.Commit();
                         }
+                        trans.Commit();
                     }
                     MessageBox.Show("穿樑套管重新編號完畢!");
                 }else if (dialogResult == DialogResult.No)

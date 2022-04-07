@@ -47,7 +47,7 @@ namespace BeamCasing_ButtonCreate
             ProtectR_min2.Text = BeamCast_Settings.Default.rP2_Min.ToString();
             SizeR_ratioD2.Text = BeamCast_Settings.Default.rMax2_RatioD.ToString();
             SizeR_ratioW2.Text = BeamCast_Settings.Default.rMax2_RatioW.ToString();
-
+            LinkBox.IsChecked = BeamCast_Settings.Default.checkLink;
         }
         private void ContinueButton_Click(object sender, RoutedEventArgs e)
         {
@@ -138,6 +138,18 @@ namespace BeamCasing_ButtonCreate
                     textBox.Select(offset, 0);
                 }
             }
+        }
+
+        private void LinkBox_Checked(object sender, RoutedEventArgs e)
+        {
+            BeamCast_Settings.Default.checkLink  = true;
+            BeamCast_Settings.Default.Save();
+        }
+
+        private void LinkBox_UnChecked(object sender, RoutedEventArgs e)
+        {
+            BeamCast_Settings.Default.checkLink = false;
+            BeamCast_Settings.Default.Save();
         }
     }
 }

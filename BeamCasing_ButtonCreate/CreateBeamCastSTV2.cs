@@ -28,7 +28,6 @@ namespace BeamCasing_ButtonCreate
                 {
                     UIApplication uiapp = commandData.Application;
                     Autodesk.Revit.ApplicationServices.Application app = uiapp.Application;
-
                     UIDocument uidoc = commandData.Application.ActiveUIDocument;
                     Document doc = uidoc.Document;
 
@@ -71,7 +70,6 @@ namespace BeamCasing_ButtonCreate
                     Document linkBeamDoc = beamLinkInst.GetLinkDocument();
                     Element pickBeam = linkBeamDoc.GetElement(pikBeamRefer.LinkedElementId);
                     Transform linkTransform = beamLinkInst.GetTotalTransform();
-
 
                     #endregion
                     Family RC_Cast;
@@ -506,7 +504,7 @@ namespace BeamCasing_ButtonCreate
                             }
                         }
                         //else if (targetPara.AsValueString() == "100 mm" || targetPara.AsValueString() == "88 mm" || targetPara.AsValueString() == "104 mm")
-                        else if (covertUnit >= 100 && covertUnit < 125)
+                        else if (covertUnit >= 100 && covertUnit <= 125)
                         {
                             if (tempSymbol.Name == "150mm")
                             {
@@ -514,31 +512,21 @@ namespace BeamCasing_ButtonCreate
                             }
                         }
                         //else if (targetPara.AsValueString() == "125 mm")
-                        else if (covertUnit >= 125 && covertUnit < 150)
-                        {
-                            if (tempSymbol.Name == "150mm")
-                            {
-                                targetFamilySymbol = tempSymbol;
-                            }
-                        }
-                        //else if (targetPara.AsValueString() == "150 mm")
-                        else if (covertUnit >= 150 && covertUnit < 200)
+                        else if (covertUnit > 125 && covertUnit <= 150)
                         {
                             if (tempSymbol.Name == "200mm")
                             {
                                 targetFamilySymbol = tempSymbol;
                             }
                         }
-                        //else if (targetPara.AsValueString() == "200 mm")
-                        else if (covertUnit >= 200 && covertUnit < 250)
+                        else if (covertUnit >150 && covertUnit <= 200)
                         {
                             if (tempSymbol.Name == "250mm")
                             {
                                 targetFamilySymbol = tempSymbol;
                             }
                         }
-                        //else if (targetPara.AsValueString() == "250 mm")
-                        else if (covertUnit >= 250 && covertUnit < 300)
+                        else if (covertUnit > 200 )
                         {
                             if (tempSymbol.Name == "300mm")
                             {

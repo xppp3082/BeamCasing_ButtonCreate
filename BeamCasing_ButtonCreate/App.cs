@@ -23,6 +23,7 @@ namespace BeamCasing_ButtonCreate
         //測試將其他button加到現有TAB
         const string RIBBON_TAB = "【CEC MEP】";
         const string RIBBON_PANEL = "穿樑開口";
+        const string RIBBON_PANEL2 = "CSD&SEM";
         public Result OnStartup(UIControlledApplication a)
         {
 
@@ -34,6 +35,7 @@ namespace BeamCasing_ButtonCreate
             }
             catch (Exception) { } //tab alreadt exists
             RibbonPanel panel = null;
+            //創建「穿樑套管」頁籤
             List<RibbonPanel> panels = a.GetRibbonPanels(RIBBON_TAB); //在此要確保RIBBON_TAB在這行之前已經被創建
             foreach (RibbonPanel pnl in panels)
             {
@@ -48,6 +50,23 @@ namespace BeamCasing_ButtonCreate
             {
                 panel = a.CreateRibbonPanel(RIBBON_TAB, RIBBON_PANEL);
             }
+
+            //創建「SEM&CSD」頁籤
+            RibbonPanel panel2 = null;
+            foreach (RibbonPanel pnl in panels)
+            {
+                if (pnl.Name == RIBBON_PANEL2)
+                {
+                    panel2 = pnl;
+                    break;
+                }
+            }
+            // couldn't find panel, create it
+            if (panel2 == null)
+            {
+                panel2 = a.CreateRibbonPanel(RIBBON_TAB, RIBBON_PANEL2);
+            }
+
             // get the image for the button
             System.Drawing.Image image_CreateST = Properties.Resources.穿樑套管ICON合集_ST;
             ImageSource imgSrc0 = GetImageSource(image_CreateST);
@@ -70,10 +89,14 @@ namespace BeamCasing_ButtonCreate
             System.Drawing.Image image_ReNum = Properties.Resources.穿樑套管ICON合集_重編號2;
             ImageSource imgSrc5 = GetImageSource(image_ReNum);
 
+            System.Drawing.Image image_Copy = Properties.Resources.副穿樑套管ICON合集_複製;
+            ImageSource imgSrc6 = GetImageSource(image_Copy);
+
+
             // create the button data
             PushButtonData btnData0 = new PushButtonData(
              "MyButton_CastCreateST",
-             "創建\n   ST穿樑套管   ",
+             "   鋼構開孔   ",
              Assembly.GetExecutingAssembly().Location,
              "BeamCasing_ButtonCreate.CreateBeamCastSTV2"//按鈕的全名-->要依照需要參照的command打入
              );
@@ -85,7 +108,7 @@ namespace BeamCasing_ButtonCreate
 
             PushButtonData btnData = new PushButtonData(
                 "MyButton_CastCreate",
-                "創建\n   RC穿樑套管   ",
+                "   RC套管   ",
                 Assembly.GetExecutingAssembly().Location,
                 "BeamCasing_ButtonCreate.CreateBeamCastV2"//按鈕的全名-->要依照需要參照的command打入
                 );
@@ -144,46 +167,67 @@ Assembly.GetExecutingAssembly().Location,
                 btnData5.LargeImage = imgSrc5;
             }
 
+            PushButtonData btnData6 = new PushButtonData(
+"MyButton_CopyLinked",
+"複製所有\n   外參套管   ",
+Assembly.GetExecutingAssembly().Location,
+"BeamCasing_ButtonCreate.CopyAllCast"
+);
+            {
+                btnData6.ToolTip = "複製所有連結模型中的套管";
+                btnData6.LongDescription = "複製所有連結模型中的套管，以供SEM開口編號用";
+                btnData6.LargeImage = imgSrc6;
+            }
+
+            //更新穿樑資訊(更新&設定)
+            SplitButtonData setUpButtonData = new SplitButtonData("CastSetUpButton", "穿樑套管更新");
+            SplitButton splitButton1 = panel.AddItem(setUpButtonData) as SplitButton;
+            PushButton button2 = splitButton1.AddPushButton(btnData2);
+            button2 = splitButton1.AddPushButton(btnData3);
+
+            //創建穿樑套管(ST&RC)
             PushButton button0 = panel.AddItem(btnData0) as PushButton;
             PushButton button = panel.AddItem(btnData) as PushButton;
-            PushButton button2 = panel.AddItem(btnData2) as PushButton;
-            PushButton button3 = panel.AddItem(btnData3) as PushButton;
-            PushButton button4 = panel.AddItem(btnData4) as PushButton;
-            PushButton button5 = panel.AddItem(btnData5) as PushButton;
+
+            //splitButton1.AddPushButton(btnData2);
+            //splitButton1.AddPushButton(btnData3);
+            //PushButton button2 = panel.AddItem(btnData2) as PushButton;
+            //PushButton button3 = panel.AddItem(btnData3) as PushButton;
+
+            //複製所有套管
+            PushButton button6 = panel2.AddItem(btnData6) as PushButton;
+
+            //穿樑套管編號(編號&重編)
+            SplitButtonData setNumButtonData = new SplitButtonData("CastSetNumButton", "穿樑套管編號");
+            SplitButton splitButton2 = panel2.AddItem(setNumButtonData) as SplitButton;
+            PushButton button4 =splitButton2.AddPushButton(btnData4);
+            button4 = splitButton2.AddPushButton(btnData5);
+            //splitButton2.AddPushButton(btnData5);
+
+            //PushButton button4 = panel.AddItem(btnData4) as PushButton;
+            //PushButton button5 = panel.AddItem(btnData5) as PushButton;
+
+            //pullDownButton設定方法
             //PulldownButtonData pulldownButtonData = new PulldownButtonData("MyButton_Num", "套管編號");
             //pulldownButtonData.Image
             //PulldownButton pulldownGroup = panel.AddItem(pulldownButtonData) as PulldownButton;
             //PushButton button4= pulldownGroup.AddPushButton(btnData4) as PushButton;
             //PushButton button5 = pulldownGroup.AddPushButton(btnData5) as PushButton;
+
+
+            //預設Enabled本來就為true，不用特別設定
             button0.Enabled = true;
             button.Enabled = true;
-            button2.Enabled = true;
-            button3.Enabled = true;
-            button4.Enabled = true;
-            button5.Enabled = true;
-            //adWin.RibbonControl ribbon = adWin.ComponentManager.Ribbon;
-            //找到TAB名稱之後再製作button
-            //foreach (adWin.RibbonTab tab in ribbon.Tabs)
-            //{
-            //    if (tab.Name == "【CEC MEP】")
-            //    {
-            //        foreach (adWin.RibbonPanel panel in tab.Panels)
-            //        {
-            //            //if (panel.Source.Id == RIBBON_PANEL)
-            //            //{
-            //            //    targetPanel = panel;
-            //            //    break;
-            //            //}
-
-            //        }
-
-            //        //
-
-            //    }
-            //}
-
-
-
+            //splitButton1.Enabled = true;
+            //splitButton2.Enabled = true;
+            //button2.Enabled = true;
+            //button4.Enabled = true;
+            //splitButton1.Enabled = true;
+            //splitButton2.Enabled = true;
+            //button2.Enabled = true;
+            //button3.Enabled = true;
+            //button4.Enabled = true;
+            //button5.Enabled = true;
 
             return Result.Succeeded;
         }

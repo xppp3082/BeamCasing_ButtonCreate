@@ -262,5 +262,17 @@ namespace BeamCasing_ButtonCreate {
                 this["rP2_Ratio"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool checkLink {
+            get {
+                return ((bool)(this["checkLink"]));
+            }
+            set {
+                this["checkLink"] = value;
+            }
+        }
     }
 }

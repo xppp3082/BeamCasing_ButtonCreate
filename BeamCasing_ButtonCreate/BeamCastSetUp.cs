@@ -33,6 +33,7 @@ namespace BeamCasing_ButtonCreate
             }
             catch
             {
+                MessageBox.Show("視窗無法順利開啟");
                 return Result.Failed;
             }
             return Result.Succeeded;

@@ -82,6 +82,7 @@
     </Compile>
     <Compile Include="CastInfromUpdateV3.cs" />
     <Compile Include="CastInfromUpdateV4.cs" />
+    <Compile Include="CopyAllCast.cs" />
     <Compile Include="CreateBeamCastSTV2.cs" />
     <Compile Include="CreateBeamCastV2.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -95,6 +96,9 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="BeamCasing_ButtonCreate.addin" />
+    <Resource Include="Resources\穿樑原則示意修正-02.png" />
+    <Resource Include="Resources\穿樑原則示意修正-01.png" />
+    <None Include="Resources\副穿樑套管ICON合集_複製.png" />
     <None Include="Resources\穿樑套管ICON合集_編號2.png" />
     <None Include="Resources\穿樑套管ICON合集_重編號2.png" />
     <None Include="Resources\穿樑套管ICON合集_編號.png" />

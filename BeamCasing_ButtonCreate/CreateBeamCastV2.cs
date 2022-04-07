@@ -81,7 +81,6 @@ namespace BeamCasing_ButtonCreate
                     using (Transaction tx = new Transaction(doc))
                     {
                         tx.Start("載入檔案測試");
-
                         RC_Cast = new BeamCast().BeamCastSymbol(doc);
                         tx.Commit();
                     }
@@ -225,50 +224,10 @@ namespace BeamCasing_ButtonCreate
                                 double degreeCheck = Math.Round(degree2, 0);
                                 instance.Location.Rotate(Axis, degree);
 
-
-                                #region 為了要讓電管也可以使用，把自動放置就寫入系統別的功能拿掉。
-                                ////寫入系統別
-                                //string pipeSystem = pickPipe.LookupParameter("系統類型").AsValueString();
-                                //Parameter instSystem = instance.LookupParameter("系統別");
-                                //if (pipeSystem.Contains("P 排水"))
-                                //{
-                                //    instSystem.Set("P");
-                                //}
-                                //else if (pipeSystem.Contains("P 通風"))
-                                //{
-                                //    instSystem.Set("P");
-                                //}
-                                //else if (pipeSystem.Contains("E 電氣"))
-                                //{
-                                //    instSystem.Set("E");
-                                //}
-                                //else if (pipeSystem.Contains("M 空調水"))
-                                //{
-                                //    instSystem.Set("A");
-                                //}
-                                //else if (pipeSystem.Contains("F 消防"))
-                                //{
-                                //    instSystem.Set("F");
-                                //}
-                                //else if (pipeSystem.Contains("W 給水"))
-                                //{
-                                //    instSystem.Set("W");
-                                //}
-                                //else if (pipeSystem.Contains("G 瓦斯"))
-                                //{
-                                //    instSystem.Set("G");
-                                //}
-                                //else
-                                //{
-                                //    instSystem.Set("未指定");
-                                //}
-                                #endregion
-
                                 //針對已在樑中的穿樑套管做檢核
                                 double casrCreatedWidth = instance.get_BoundingBox(null).Max.Z - instance.get_BoundingBox(null).Min.Z;
                                 LocationPoint castCreatedLocate = instance.Location as LocationPoint;
                                 XYZ castCreatedXYZ = castCreatedLocate.Point;
-
 
                                 #region 在放置時就檢查使否過近的功能，目前暫不需要
                                 //if (castsInThisBeam.Count() > 0)
@@ -368,7 +327,6 @@ namespace BeamCasing_ButtonCreate
                                 }
                             }
                         }
-                        //}
 
                         if (totalIntersectCount == 0)
                         {
@@ -508,33 +466,9 @@ namespace BeamCasing_ButtonCreate
                             }
                         }
                         //else if (targetPara.AsValueString() == "125 mm")
-                        else if (covertUnit >= 125 && covertUnit < 150)
+                        else if (covertUnit >= 125 && covertUnit <= 150)
                         {
                             if (tempSymbol.Name == "150mm")
-                            {
-                                targetFamilySymbol = tempSymbol;
-                            }
-                        }
-                        //else if (targetPara.AsValueString() == "150 mm")
-                        else if (covertUnit >= 150 && covertUnit < 200)
-                        {
-                            if (tempSymbol.Name == "200mm")
-                            {
-                                targetFamilySymbol = tempSymbol;
-                            }
-                        }
-                        //else if (targetPara.AsValueString() == "200 mm")
-                        else if (covertUnit >= 200 && covertUnit < 250)
-                        {
-                            if (tempSymbol.Name == "250mm")
-                            {
-                                targetFamilySymbol = tempSymbol;
-                            }
-                        }
-                        //else if (targetPara.AsValueString() == "250 mm")
-                        else if (covertUnit >= 250 && covertUnit < 300)
-                        {
-                            if (tempSymbol.Name == "300mm")
                             {
                                 targetFamilySymbol = tempSymbol;
                             }

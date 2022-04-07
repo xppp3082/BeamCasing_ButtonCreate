@@ -25,6 +25,7 @@ namespace BeamCasing_ButtonCreate
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();//引用stopwatch物件
             sw.Reset();//碼表歸零
             sw.Start();//碼表開始計時
+            errorOutput = "";
             DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
             try
             {
@@ -77,7 +78,6 @@ namespace BeamCasing_ButtonCreate
                 //找到所有穿樑套管元件
                 List<FamilyInstance> famList = findTargetElements(doc);
 
-
                 //檢查參數
                 foreach (FamilyInstance famInst in famList)
                 {
@@ -125,7 +125,7 @@ namespace BeamCasing_ButtonCreate
                             inst.LookupParameter("貫穿樑尺寸").Set("無尺寸");
                             inst.LookupParameter("貫穿樑編號").Set("無編號");
                             inst.LookupParameter("干涉管數量").Set(0);
-                            inst.LookupParameter("系統別").Set("未指定");
+                            inst.LookupParameter("系統別").Set("SP");
                         }
                     }
                     trans.Commit();
@@ -461,6 +461,27 @@ namespace BeamCasing_ButtonCreate
                 MessageBox.Show("蒐集套管發生問題!");
             }
             return castInstances;
+        }
+
+        public List<FamilyInstance> findLinkTargetElements(Document doc)
+        {
+            List<RevitLinkInstance> linkInstanceList = getMEPLinkInstance(doc);
+            List<FamilyInstance> targetList = new List<FamilyInstance>();
+            foreach (RevitLinkInstance revitLink in linkInstanceList)
+            {
+                Document linkDoc = revitLink.GetLinkDocument();
+                Transform trans = revitLink.GetTotalTransform();
+                FilteredElementCollector elementCollector = new FilteredElementCollector(linkDoc);
+                List<FamilyInstance> tempList = findTargetElements(linkDoc);
+                if (tempList.Count() > 0)
+                {
+                    foreach (FamilyInstance inst in tempList)
+                    {
+                        targetList.Add(inst);
+                    }
+                }
+            }
+            return targetList;
         }
         //可以判斷樑中樑的程式-->用Dictionary裝穿樑套管以及與之對應的樑
         //因為樑與套管正常來說應該是一對一的關係，強制取得它們的關係(用套管ID反查干涉的樑)
@@ -967,17 +988,33 @@ namespace BeamCasing_ButtonCreate
 
                     //與其他穿樑套管之間的距離檢討
                     List<FamilyInstance> tempList = findTargetElements(elem.Document);
+                    //針對外參的套管也需要抓取
+                    List<FamilyInstance> linkFamList = findLinkTargetElements(elem.Document);
+                    List<FamilyInstance> targetList = new List<FamilyInstance>();
+
+                    //利用UI中的CheckBox判斷是否需要計算外參，在各子系統中需要，CSD中不用
+                    if (BeamCast_Settings.Default.checkLink == true)
+                    {
+                        targetList = tempList.Union(linkFamList).ToList();
+                    }else if (BeamCast_Settings.Default.checkLink == false)
+                    {
+                        targetList = tempList;
+                    }
                     List<double> distList = new List<double>();
                     double baseWidth = getCastWidth(elem);
-                    foreach (FamilyInstance e in tempList)
+
+                    foreach (FamilyInstance e in targetList)
                     {
+                        string elemLevel = elem.get_Parameter(BuiltInParameter.SCHEDULE_LEVEL_PARAM).AsValueString();
+                        string eLevel = e.get_Parameter(BuiltInParameter.SCHEDULE_LEVEL_PARAM).AsValueString();
                         //自己跟自己不用算
                         if (e.Id == elem.Id)
                         {
                             continue;
                         }
                         //同一層的才要進行距離檢討與計算
-                        else if (e.LevelId == elem.LevelId)
+                        //else if (e.LevelId == elem.LevelId)
+                        else if (elemLevel == eLevel)
                         {
                             double targetWidth = getCastWidth(e);
                             double distCheck = baseWidth + targetWidth;
@@ -1046,10 +1083,6 @@ namespace BeamCasing_ButtonCreate
 
                 List<RevitLinkInstance> otherMEP = getMEPLinkInstance(doc);
                 List<Element> pipeCollector_final = new List<Element>();
-                if (pipeCollector.Count() == 0)
-                {
-                    systemType.Set("未指定");
-                }
                 //將本機端蒐集到的管放進list
                 foreach (Element e in pipeCollector)
                 {
@@ -1088,6 +1121,10 @@ namespace BeamCasing_ButtonCreate
                         }
                     }
                 }
+                if (pipeCollector_final.Count() == 0)
+                {
+                    systemType.Set("SP");
+                }
                 inst.LookupParameter("干涉管數量").Set(pipeCollector_final.Count());
                 //針對蒐集到的管去做系統別的更新，因為電管沒有系統類型，要和管分開處理
                 if (pipeCollector_final.Count() == 1)
@@ -1119,7 +1156,7 @@ namespace BeamCasing_ButtonCreate
                         }
                         else
                         {
-                            systemType.Set("未指定");
+                            systemType.Set("SP");
                         }
                     }
                 }
@@ -1165,6 +1202,10 @@ namespace BeamCasing_ButtonCreate
                         {
                             //systemType.Set(newList.First());
                             systemType.Set("A");
+                        }
+                        else if (newList.Count() == 1&&newList.First()!="M")
+                        {
+                            systemType.Set(newList.First());
                         }
                         //如果為不同系統共管，則設為M
                         else if (newList.Count() > 1)

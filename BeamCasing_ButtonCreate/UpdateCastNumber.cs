@@ -60,7 +60,7 @@ namespace BeamCasing_ButtonCreate
                         {
                             string castNum = inst.LookupParameter(paraName).AsString();
                             //不在正常數字編號內，或是已經重複的套管，都必須修改
-                            if (!numList.Contains(castNum) ||existNumList.Contains(castNum))
+                            if (!numList.Contains(castNum) || existNumList.Contains(castNum))
                             {
                                 modifyList.Add(inst);
                             }
@@ -70,6 +70,7 @@ namespace BeamCasing_ButtonCreate
                                 existNumList.Add(castNum);
                             }
                         }
+                        //不在既有編號中的正確數字，放入待寫名單中
                         foreach (string correct in numList)
                         {
                             if (!existNumList.Contains(correct))
@@ -77,13 +78,13 @@ namespace BeamCasing_ButtonCreate
                                 toWrite.Add(correct);
                             }
                         }
-                       //補上沒有寫入的數字
-                        for(int i =0; i < modifyList.Count; i++)
+                        //補上沒有寫入的數字
+                        for (int i = 0; i < modifyList.Count(); i++)
                         {
                             modifyList[i].LookupParameter(paraName).Set(toWrite[i]);
                         }
-                        trans.Commit();
                     }
+                    trans.Commit();
                 }
             }
             catch
