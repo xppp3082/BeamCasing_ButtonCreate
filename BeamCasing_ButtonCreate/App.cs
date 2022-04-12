@@ -23,7 +23,7 @@ namespace BeamCasing_ButtonCreate
         //測試將其他button加到現有TAB
         const string RIBBON_TAB = "【CEC MEP】";
         const string RIBBON_PANEL = "穿樑開口";
-        const string RIBBON_PANEL2 = "CSD&SEM";
+        const string RIBBON_PANEL2 = "穿樑CSD&SEM";
         public Result OnStartup(UIControlledApplication a)
         {
 
@@ -169,7 +169,7 @@ Assembly.GetExecutingAssembly().Location,
 
             PushButtonData btnData6 = new PushButtonData(
 "MyButton_CopyLinked",
-"複製所有\n   外參套管   ",
+"複製外參\n   穿樑套管   ",
 Assembly.GetExecutingAssembly().Location,
 "BeamCasing_ButtonCreate.CopyAllCast"
 );

@@ -32,6 +32,7 @@ namespace BeamCasing_ButtonCreate
                 UIDocument uidoc = commandData.Application.ActiveUIDocument;
                 Document doc = uidoc.Document;
                 IList<Element> levelList = findAllLevel(doc);
+                int totalCount = 0;
                 using (Transaction trans = new Transaction(doc))
                 {
                     trans.Start("穿樑套管自動邊號");
@@ -47,6 +48,7 @@ namespace BeamCasing_ButtonCreate
                         int castCount = castList.Count();
                         string paraName = "開口編號";
                         if (castCount == 0) continue;
+                        totalCount += castCount;
                         //先蒐集一個正常的編號list
                         for (int i = 1; i < castCount + 1; i++)
                         {
@@ -83,6 +85,11 @@ namespace BeamCasing_ButtonCreate
                         {
                             modifyList[i].LookupParameter(paraName).Set(toWrite[i]);
                         }
+                    }
+                    if (totalCount == 0)
+                    {
+                        MessageBox.Show("模型中沒有任何穿牆套管，無法編號");
+                        return Result.Failed;
                     }
                     trans.Commit();
                 }

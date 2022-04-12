@@ -27,6 +27,7 @@ namespace BeamCasing_ButtonCreate
                 UIDocument uidoc = commandData.Application.ActiveUIDocument;
                 Document doc = uidoc.Document;
                 IList<Element> levelList = findAllLevel(doc);
+                int totalCount = 0;
                 DialogResult dialogResult = MessageBox.Show("確定要將穿樑套管「全部重新編號」?", "CEC-MEP", MessageBoxButtons.YesNo);
                 if(dialogResult == DialogResult.Yes)
                 {
@@ -41,6 +42,7 @@ namespace BeamCasing_ButtonCreate
                             List<FamilyInstance> noNumList = new List<FamilyInstance>();
                             List<FamilyInstance> modifyList = new List<FamilyInstance>();
                             if (castList.Count == 0) continue;
+                            totalCount += castList.Count;
                             foreach (FamilyInstance inst in castList)
                             {
                                 //這邊要在做字串處理
@@ -61,6 +63,12 @@ namespace BeamCasing_ButtonCreate
                                 }
                             }
                         }
+                        if (totalCount == 0)
+                        {
+                            MessageBox.Show("模型中沒有任何穿牆套管，無法編號");
+                            return Result.Failed;
+                        }
+                        trans.Commit();
                         trans.Commit();
                     }
                     MessageBox.Show("穿樑套管重新編號完畢!");
