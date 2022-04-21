@@ -162,7 +162,7 @@ namespace BeamCasing_ButtonCreate
 
                                 List<string> paraNameToCheck = new List<string>()
                                 {
-                                   "L","系統別","TTOP","TCOP","TBOP","BBOP","BCOP","BTOP"
+                                   "開口長","系統別","TTOP","TCOP","TBOP","BBOP","BCOP","BTOP"
                                 };
 
                                 foreach (string item in paraNameToCheck)
@@ -178,7 +178,7 @@ namespace BeamCasing_ButtonCreate
 
 
                                 //調整長度與高度
-                                instance.LookupParameter("L").Set(intersection.GetCurveSegment(i).Length + 2 / 30.48); //套管前後加兩公分
+                                instance.LookupParameter("開口長").Set(intersection.GetCurveSegment(i).Length + 2 / 30.48); //套管前後加兩公分
                                 double floorHeight = topLevel.Elevation - lowLevel.Elevation;
                                 double adjust = instance.LookupParameter("管外半徑").AsDouble();
                                 double toMove2 = tempCenter.Z - topLevel.Elevation + adjust;

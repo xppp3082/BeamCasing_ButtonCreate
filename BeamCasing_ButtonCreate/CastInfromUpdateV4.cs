@@ -12,6 +12,7 @@ using Autodesk.Revit.DB.Structure;
 using System.Windows.Forms;
 using System.Text;
 using System.IO;
+using System.Threading;
 #endregion
 
 namespace BeamCasing_ButtonCreate
@@ -34,9 +35,14 @@ namespace BeamCasing_ButtonCreate
                 Autodesk.Revit.ApplicationServices.Application app = uiapp.Application;
                 UIDocument uidoc = commandData.Application.ActiveUIDocument;
                 Document doc = uidoc.Document;
-                List<string> usefulParaName = new List<string> { "BTOP", "BCOP", "BBOP", "TTOP", "TCOP", "TBOP",
-                    "【原則檢討】上部檢討", "【原則檢討】下部檢討", "【原則檢討】尺寸檢討", "【原則檢討】是否穿樑", "【原則檢討】邊距檢討", "【原則檢討】樑端檢討",
-                    "干涉管數量", "系統別", "貫穿樑尺寸", "貫穿樑材料", "貫穿樑編號" };
+
+                //找到所有穿樑套管元件
+                List<FamilyInstance> famList = findTargetElements(doc);
+                using (CastUpdateProgressUI progressView = new CastUpdateProgressUI(famList.Count))
+                {
+                    List<string> usefulParaName = new List<string> { "BTOP", "BCOP", "BBOP", "TTOP", "TCOP", "TBOP",
+                    "【原則】上邊距", "【原則】下邊距", "【原則】尺寸檢討", "【原則】是否穿樑", "【原則】邊距檢討", "【原則】樑端檢討",
+                    "干涉管數量", "系統別", "貫穿樑尺寸", "貫穿樑材料", "貫穿樑編號","開口長" };
                 List<double> settingPara = new List<double>() {
                     BeamCast_Settings.Default.cD1_Ratio,
                     BeamCast_Settings.Default.cP1_Ratio,
@@ -75,61 +81,63 @@ namespace BeamCasing_ButtonCreate
                     }
                 }
 
-                //找到所有穿樑套管元件
-                List<FamilyInstance> famList = findTargetElements(doc);
 
-                //檢查參數
-                foreach (FamilyInstance famInst in famList)
-                {
-                    foreach (string item in usefulParaName)
+                    //檢查參數
+                    foreach (FamilyInstance famInst in famList)
                     {
-                        if (!checkPara(famInst, item))
+                        foreach (string item in usefulParaName)
                         {
-                            MessageBox.Show($"執行失敗，請檢查{famInst.Symbol.FamilyName}元件中是否缺少{item}參數欄位");
-                            return Result.Failed;
+                            if (!checkPara(famInst, item))
+                            {
+                                MessageBox.Show($"執行失敗，請檢查{famInst.Symbol.FamilyName}元件中是否缺少{item}參數欄位");
+                                return Result.Failed;
+                            }
                         }
+                    }
+
+
+                    //更新穿樑套管參數
+                    using (Transaction trans = new Transaction(doc))
+                    {
+                        Dictionary<ElementId, List<Element>> castDict = getCastBeamDict(doc);
+                        trans.Start("更新關樑套管參數");
+                        foreach (ElementId tempId in castDict.Keys)
+                        {
+                            //更新穿樑套管資訊&內容
+                            updateCastInst(doc.GetElement(tempId), castDict[tempId].First());
+                            updateCastMaterial(doc.GetElement(tempId), castDict[tempId].First());
+                            updateCastContent(doc, doc.GetElement(tempId));
+                            //如果只有一支，以該支樑為準
+                            if (castDict[tempId].Count == 1)
+                            {
+                                modifyCastLen(doc.GetElement(tempId), castDict[tempId][0]);
+                            }
+                            //如果有兩支以上，表示其為SRC，以RC樑的外框為準
+                            else if (castDict[tempId].Count > 1)
+                            {
+                                modifyCastLen(doc.GetElement(tempId), castDict[tempId][1]);
+                            }
+                            //以外參進行單位的更新進度顯示
+                            if (progressView.Update()) break;
+                        }
+
+                        //檢查所有的實做套管，如果不再Dictionary中，則表示其沒有穿樑，「【原則】是否穿樑」應該設為不符合
+                        List<FamilyInstance> famListUpdate = findTargetElements(doc);
+                        foreach (FamilyInstance inst in famListUpdate)
+                        {
+                            if (!castDict.Keys.Contains(inst.Id))
+                            {
+                                inst.LookupParameter("【原則】是否穿樑").Set("不符合");
+                                inst.LookupParameter("貫穿樑尺寸").Set("無尺寸");
+                                inst.LookupParameter("貫穿樑編號").Set("無編號");
+                                inst.LookupParameter("干涉管數量").Set(0);
+                                inst.LookupParameter("系統別").Set("SP");
+                            }
+                        }
+                        trans.Commit();
                     }
                 }
 
-
-                //更新穿樑套管參數
-                using (Transaction trans = new Transaction(doc))
-                {
-                    Dictionary<ElementId, List<Element>> castDict = getCastBeamDict(doc);
-                    trans.Start("更新關樑套管參數");
-                    foreach (ElementId tempId in castDict.Keys)
-                    {
-                        //更新穿樑套管資訊&內容
-                        updateCastInst(doc.GetElement(tempId), castDict[tempId].First());
-                        updateCastMaterial(doc.GetElement(tempId), castDict[tempId].First());
-                        updateCastContent(doc, doc.GetElement(tempId));
-                        //如果只有一支，以該支樑為準
-                        if (castDict[tempId].Count == 1)
-                        {
-                            modifyCastLen(doc.GetElement(tempId), castDict[tempId][0]);
-                        }
-                        //如果有兩支以上，表示其為SRC，以RC樑的外框為準
-                        else if (castDict[tempId].Count > 1)
-                        {
-                            modifyCastLen(doc.GetElement(tempId), castDict[tempId][1]);
-                        }
-                    }
-
-                    //檢查所有的實做套管，如果不再Dictionary中，則表示其沒有穿樑，「【原則檢討】是否穿樑」應該設為不符合
-                    List<FamilyInstance> famListUpdate = findTargetElements(doc);
-                    foreach (FamilyInstance inst in famListUpdate)
-                    {
-                        if (!castDict.Keys.Contains(inst.Id))
-                        {
-                            inst.LookupParameter("【原則檢討】是否穿樑").Set("不符合");
-                            inst.LookupParameter("貫穿樑尺寸").Set("無尺寸");
-                            inst.LookupParameter("貫穿樑編號").Set("無編號");
-                            inst.LookupParameter("干涉管數量").Set(0);
-                            inst.LookupParameter("系統別").Set("SP");
-                        }
-                    }
-                    trans.Commit();
-                }
             }
             catch
             {
@@ -138,12 +146,13 @@ namespace BeamCasing_ButtonCreate
             }
             sw.Stop();//碼錶停止
             double sec = Math.Round(sw.Elapsed.TotalMilliseconds / 1000, 2);
-            string output = $"套管資訊更新完成，共花費 {sec} 秒\n";
+            string output = $"穿樑套管資訊更新完成，共花費 {sec} 秒\n";
             MessageBox.Show(output + errorOutput);
-            //MessageBox.Show($"套管資訊更新完成，共花費 {sec} 秒");
-            //MessageBox.Show(errorOutput);
+            errorOutput = "";
             return Result.Succeeded;
         }
+
+
         public IList<Solid> GetTargetSolids(Element element)
         {
             List<Solid> solids = new List<Solid>();
@@ -638,8 +647,8 @@ namespace BeamCasing_ButtonCreate
             }
             else if (inernalName.Contains("方"))
             {
-                widthPara = inst.LookupParameter("W");
-                if (widthPara == null) MessageBox.Show($"請檢查{inst.Symbol.FamilyName}中是否缺少「W」參數欄位");
+                widthPara = inst.LookupParameter("開口寬");
+                if (widthPara == null) MessageBox.Show($"請檢查{inst.Symbol.FamilyName}中是否缺少「開口寬」參數欄位");
                 targetWidth = widthPara.AsDouble();
             }
             return targetWidth;
@@ -662,7 +671,7 @@ namespace BeamCasing_ButtonCreate
             }
             else if (inernalName.Contains("方"))
             {
-                widthPara = inst.LookupParameter("H");
+                widthPara = inst.LookupParameter("開口高");
                 if (widthPara == null) MessageBox.Show($"請檢查{inst.Symbol.FamilyName}中是否缺少「H」參數欄位");
                 targetWidth = widthPara.AsDouble();
             }
@@ -713,7 +722,7 @@ namespace BeamCasing_ButtonCreate
                 double castLength = getBeamWidthPara(linkedBeam).AsDouble() + 2 / 30.48;
 
                 FamilyInstance inst = elem as FamilyInstance;
-                Parameter instLenPara = inst.LookupParameter("L");
+                Parameter instLenPara = inst.LookupParameter("開口長");
                 double beamWidth = getBeamWidthPara(linkedBeam).AsDouble();
                 //先調整套管位置
                 if (!castPt.IsAlmostEqualTo(targetPoint))
@@ -755,6 +764,7 @@ namespace BeamCasing_ButtonCreate
 
                 SolidCurveIntersectionOptions options = new SolidCurveIntersectionOptions();
                 DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
+                double beamHeight = 0.0;
                 if (null != beamSolid)
                 {
                     LocationPoint instLocate = inst.Location as LocationPoint;
@@ -772,7 +782,7 @@ namespace BeamCasing_ButtonCreate
                     {
                         string instInternalName = inst.Symbol.LookupParameter("API識別名稱").AsString();
                         //針對有交集的實體去做計算
-                        inst.LookupParameter("【原則檢討】是否穿樑").Set("OK");
+                        inst.LookupParameter("【原則】是否穿樑").Set("OK");
                         //計算TOP、BOP等六個參數
                         LocationPoint cast_Locate = inst.Location as LocationPoint;
                         XYZ LocationPt = cast_Locate.Point;
@@ -791,7 +801,7 @@ namespace BeamCasing_ButtonCreate
                         double BBOP_update = cast_Min.Z - intersect_DN.Z;
                         double TTOP_orgin = inst.LookupParameter("TTOP").AsDouble();
                         double BBOP_orgin = inst.LookupParameter("BBOP").AsDouble();
-                        double beamHeight = intersect_UP.Z - intersect_DN.Z;
+                        beamHeight = intersect_UP.Z - intersect_DN.Z;
                         double test = beamHeight * 30.48;
                         double castHeight = cast_Max.Z - cast_Min.Z;
 
@@ -913,13 +923,13 @@ namespace BeamCasing_ButtonCreate
                         {
                             if (d < 0)
                             {
-                                inst.LookupParameter("【原則檢討】是否穿樑").Set("不符合");
+                                inst.LookupParameter("【原則】是否穿樑").Set("不符合");
                                 instBeamNum.Set("無編號");
                                 instBeamSize.Set("無尺寸");
                             }
                         }
                         //檢查是否過大
-                        Parameter sizeCheckPara = inst.LookupParameter("【原則檢討】尺寸檢討");
+                        Parameter sizeCheckPara = inst.LookupParameter("【原則】尺寸檢討");
                         if (isCircleCast)
                         {
 
@@ -936,8 +946,8 @@ namespace BeamCasing_ButtonCreate
                         }
 
                         //檢查上下部包護層
-                        Parameter protectionCheckPara_UP = inst.LookupParameter("【原則檢討】上部檢討");
-                        Parameter protectionCheckPara_DN = inst.LookupParameter("【原則檢討】下部檢討");
+                        Parameter protectionCheckPara_UP = inst.LookupParameter("【原則】上邊距");
+                        Parameter protectionCheckPara_DN = inst.LookupParameter("【原則】下邊距");
                         if (TTOP_update < protectDistCheck)
                         {
                             protectionCheckPara_UP.Set("不符合");
@@ -956,7 +966,7 @@ namespace BeamCasing_ButtonCreate
                         }
 
                         //檢查套管是否離樑的兩端過近
-                        Parameter endCheckPara = inst.LookupParameter("【原則檢討】樑端檢討");
+                        Parameter endCheckPara = inst.LookupParameter("【原則】樑端檢討");
                         LocationCurve tempLocateCrv = linkedBeam.Location as LocationCurve;
                         Curve targetCrv = tempLocateCrv.Curve;
                         XYZ tempStart = targetCrv.GetEndPoint(0);
@@ -981,7 +991,7 @@ namespace BeamCasing_ButtonCreate
                     }
                     else if (intersectCount == 0)
                     {
-                        inst.LookupParameter("【原則檢討】是否穿樑").Set("不符合");
+                        inst.LookupParameter("【原則】是否穿樑").Set("不符合");
                         inst.LookupParameter("貫穿樑編號").Set("無編號");
                         inst.LookupParameter("貫穿樑尺寸").Set("無尺寸");
                     }
@@ -1018,6 +1028,11 @@ namespace BeamCasing_ButtonCreate
                         {
                             double targetWidth = getCastWidth(e);
                             double distCheck = baseWidth + targetWidth;
+                            //不論是圓孔、方孔或兩者間測距，都要和樑深(h)比較，取小者
+                            if (distCheck > beamHeight)
+                            {
+                                distCheck = beamHeight;
+                            }
                             LocationPoint baseLocate = elem.Location as LocationPoint;
                             XYZ basePt = baseLocate.Point;
                             LocationPoint targetLocate = e.Location as LocationPoint;
@@ -1032,11 +1047,11 @@ namespace BeamCasing_ButtonCreate
                     }
                     if (distList.Count > 0)
                     {
-                        inst.LookupParameter("【原則檢討】邊距檢討").Set("不符合");
+                        inst.LookupParameter("【原則】邊距檢討").Set("不符合");
                     }
                     else
                     {
-                        inst.LookupParameter("【原則檢討】邊距檢討").Set("OK");
+                        inst.LookupParameter("【原則】邊距檢討").Set("OK");
                     }
                     updateCast = inst;
                 }

@@ -62,18 +62,18 @@
                     </Grid.RowDefinitions>
 
                     <!--設定大樑穿樑原則圖示-->
-                    <Image Grid.Column="0" Grid.Row="0" Grid.ColumnSpan="8" Margin="5,5,4.632,5" Source="/BeamCasing_ButtonCreate;component/Resources/穿樑原則示意修正-01.png"/>
+                    <Image Grid.Column="0" Grid.Row="0" Grid.ColumnSpan="8" Margin="5,5,4.632,5" Source="/BeamCasing_ButtonCreate;component/Resources/穿樑原則示意修正-01_v2.png"/>
 
                     <!--(圓孔)設定大樑穿樑原則數值-->
                     <GroupBox Header="大樑穿樑設定-圓孔" Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="8" Grid.RowSpan="9" FontWeight="Bold" Margin="5,0,4.632,0"/>
 
                     <!--(圓孔)大樑不可穿樑距離設定-->
-                    <TextBlock Grid.Column="0" Grid.Row="4" Text="  01. 邊距不可開孔距離 cD1：" Margin="10,0,0,0" FontSize="14" VerticalAlignment="Center" Grid.ColumnSpan="2"/>
+                    <TextBlock Grid.Column="0" Grid.Row="4" Text="  01. 樑端不可開孔距離 cD1：" Margin="10,0,0,0" FontSize="14" VerticalAlignment="Center" Grid.ColumnSpan="2"/>
                     <TextBox x:Name="DistC_ratio1" Grid.Column="2" Grid.Row="4" Margin="5,0,90,0" VerticalAlignment="Center" TextAlignment="Right" PreviewKeyDown="TextBox_KeyDown" />
                     <TextBlock Grid.Column="2" Grid.Row="4" Text="x h(H)" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,46,0" />
 
                     <!--(圓孔)大樑保護層深度設定-->
-                    <TextBlock Grid.Column="0" Grid.Row="6" Text="  02. 保護層最小深度 cP1：" Margin="10,0,0,0" FontSize="14" VerticalAlignment="Center" Grid.ColumnSpan="2"/>
+                    <TextBlock Grid.Column="0" Grid.Row="6" Text="  02. 上下邊距最小深度 cP1：" Margin="10,0,0,0" FontSize="14" VerticalAlignment="Center" Grid.ColumnSpan="2"/>
                     <TextBox  x:Name="ProtectC_ratio1"  Grid.Column="2" Grid.Row="6" Margin="5,0,90,0" VerticalAlignment="Center" TextAlignment="Right" PreviewKeyDown="TextBox_KeyDown"/>
                     <TextBlock Grid.Column="2" Grid.Row="6" Text="x h(H)" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,46,0" />
                     <TextBlock Grid.Column="4" Grid.Row="6" Text="最小距離≧ " HorizontalAlignment="Left" VerticalAlignment="Center" />
@@ -95,12 +95,12 @@
                     <GroupBox Header="大樑穿樑設定-方孔" Grid.Column="0" Grid.Row="12" Grid.ColumnSpan="8" Grid.RowSpan="9" FontWeight="Bold" Margin="5,0,4.632,0"/>
 
                     <!--(方孔)大樑不可穿樑距離設定-->
-                    <TextBlock Grid.Column="0" Grid.Row="14" Text=" 01. 邊距不可開孔距離 rD1：" Margin="10,0,0,0" FontSize="14" Grid.ColumnSpan="2" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="0" Grid.Row="14" Text=" 01. 樑端不可開孔距離 rD1：" Margin="10,0,0,0" FontSize="14" Grid.ColumnSpan="2" VerticalAlignment="Center"/>
                     <TextBox x:Name="DistR_ratio1" Grid.Column="2" Grid.Row="14" Margin="5,0,90,0" VerticalAlignment="Center" TextAlignment="Right" PreviewKeyDown="TextBox_KeyDown"/>
                     <TextBlock Grid.Column="2" Grid.Row="14" Text="x h(H)" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,46,0" />
 
                     <!--(方孔)大樑保護層深度設定-->
-                    <TextBlock Grid.Column="0" Grid.Row="16" Text=" 02. 保護層最小深度 rP1：" Margin="10,0,0,0" FontSize="14" Grid.ColumnSpan="2" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="0" Grid.Row="16" Text=" 02. 上下邊距最小深度 rP1：" Margin="10,0,0,0" FontSize="14" Grid.ColumnSpan="2" VerticalAlignment="Center"/>
                     <TextBox  x:Name="ProtectR_ratio1"  Grid.Column="2" Grid.Row="16" Margin="5,0,90,0" VerticalAlignment="Center" TextAlignment="Right" PreviewKeyDown="TextBox_KeyDown"/>
                     <TextBlock Grid.Column="2" Grid.Row="16" Text="x h(H)" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,46,0" />
                     <TextBlock Grid.Column="4" Grid.Row="16" Text="最小距離≧ " HorizontalAlignment="Left" VerticalAlignment="Center" />
@@ -156,18 +156,18 @@
                     </Grid.RowDefinitions>
 
                     <!--設定小樑穿樑原則圖示-->
-                    <Image Grid.Column="0" Grid.Row="0" Grid.ColumnSpan="8" Margin="5" Source="/BeamCasing_ButtonCreate;component/Resources/穿樑原則示意修正-02.png"/>
+                    <Image Grid.Column="0" Grid.Row="0" Grid.ColumnSpan="8" Margin="5" Source="/BeamCasing_ButtonCreate;component/Resources/穿樑原則示意修正-02_v2.png"/>
 
                     <!--(圓孔)設定小樑穿樑原則數值-->
                     <GroupBox Header="小樑穿樑設定-圓孔" Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="8" Grid.RowSpan="9" FontWeight="Bold" Margin="5,0,4.632,0"/>
 
                     <!--(圓孔)小樑不可穿樑距離設定-->
-                    <TextBlock Grid.Column="0" Grid.Row="4" Text="  01. 邊距不可開孔距離 cD2：" Margin="10,0,0,0" FontSize="14" VerticalAlignment="Center" Grid.ColumnSpan="2"/>
+                    <TextBlock Grid.Column="0" Grid.Row="4" Text="  01. 樑端不可開孔距離 cD2：" Margin="10,0,0,0" FontSize="14" VerticalAlignment="Center" Grid.ColumnSpan="2"/>
                     <TextBox x:Name="DistC_ratio2" Grid.Column="2" Grid.Row="4" Margin="5,0,90,0" TextAlignment="Right" VerticalAlignment="Center" PreviewKeyDown="TextBox_KeyDown"/>
                     <TextBlock Grid.Column="2" Grid.Row="4" Text="x h(H)" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,46,0" />
 
                     <!--(圓孔)小樑保護層深度設定-->
-                    <TextBlock Grid.Column="0" Grid.Row="6" Text="  02. 保護層最小深度 cP2：" Margin="10,0,0,0" FontSize="14" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="0" Grid.Row="6" Text="  02. 上下邊距最小深度 cP2：" Margin="10,0,0,0" FontSize="14" VerticalAlignment="Center"/>
                     <TextBox  x:Name="ProtectC_ratio2"  Grid.Column="2" Grid.Row="6" Margin="5,0,90,0" TextAlignment="Right" VerticalAlignment="Center" PreviewKeyDown="TextBox_KeyDown"/>
                     <TextBlock Grid.Column="2" Grid.Row="6" Text="x h(H)" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,46,0" />
                     <TextBlock Grid.Column="4" Grid.Row="6" Text="最小距離≧ " HorizontalAlignment="Left" VerticalAlignment="Center" Margin="0,0,46,0" />
@@ -186,12 +186,12 @@
                     <GroupBox Header="小樑穿樑設定-方孔" Grid.Column="0" Grid.Row="12" Grid.ColumnSpan="8" Grid.RowSpan="9" FontWeight="Bold" Margin="5,0"/>
 
                     <!--(方孔)小樑不可穿樑距離設定-->
-                    <TextBlock Grid.Column="0" Grid.Row="14" Text=" 01. 邊距不可開孔距離 rD2：" Margin="10,0,0,0" FontSize="14" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="0" Grid.Row="14" Text=" 01. 樑端不可開孔距離 rD2：" Margin="10,0,0,0" FontSize="14" VerticalAlignment="Center"/>
                     <TextBox x:Name="DistR_ratio2" Grid.Column="2" Grid.Row="14" Margin="5,0,90,0" VerticalAlignment="Center" TextAlignment="Right" PreviewKeyDown="TextBox_KeyDown"/>
                     <TextBlock Grid.Column="2" Grid.Row="14" Text="x h(H)" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,46,0" />
 
                     <!--(方孔)小樑保護層深度設定-->
-                    <TextBlock Grid.Column="0" Grid.Row="16" Text=" 02. 保護層最小深度 rP2：" Margin="10,0,0,0" FontSize="14" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="0" Grid.Row="16" Text=" 02. 上下邊距最小深度 rP2：" Margin="10,0,0,0" FontSize="14" VerticalAlignment="Center"/>
                     <TextBox  x:Name="ProtectR_ratio2"  Grid.Column="2" Grid.Row="16" Margin="5,0,90,0" VerticalAlignment="Center" TextAlignment="Right" PreviewKeyDown="TextBox_KeyDown"/>
                     <TextBlock Grid.Column="2" Grid.Row="16" Text="x h(H)" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,46,0" />
                     <TextBlock Grid.Column="4" Grid.Row="16" Text="最小距離≧ " HorizontalAlignment="Left" VerticalAlignment="Center" Margin="0,0,46,0" />

@@ -67,7 +67,6 @@
   <ItemGroup>
     <Compile Include="App.cs" />
     <Compile Include="BeamCasing.cs" />
-    <Compile Include="BeamCasting_selectTestV2.cs" />
     <Compile Include="BeamCastSetting.xaml.cs">
       <DependentUpon>BeamCastSetting.xaml</DependentUpon>
     </Compile>
@@ -82,6 +81,9 @@
     </Compile>
     <Compile Include="CastInfromUpdateV3.cs" />
     <Compile Include="CastInfromUpdateV4.cs" />
+    <Compile Include="CastUpdateProgressUI.xaml.cs">
+      <DependentUpon>CastUpdateProgressUI.xaml</DependentUpon>
+    </Compile>
     <Compile Include="CopyAllCast.cs" />
     <Compile Include="CreateBeamCastSTV2.cs" />
     <Compile Include="CreateBeamCastV2.cs" />
@@ -96,6 +98,8 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="BeamCasing_ButtonCreate.addin" />
+    <Resource Include="Resources\穿樑原則示意修正-01_v2.png" />
+    <Resource Include="Resources\穿樑原則示意修正-02_v2.png" />
     <Resource Include="Resources\穿樑原則示意修正-02.png" />
     <Resource Include="Resources\穿樑原則示意修正-01.png" />
     <None Include="Resources\副穿樑套管ICON合集_複製.png" />
@@ -119,6 +123,10 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="CastInformUpdateUI.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="CastUpdateProgressUI.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
