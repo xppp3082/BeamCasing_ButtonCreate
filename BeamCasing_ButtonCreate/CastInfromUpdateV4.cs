@@ -26,7 +26,6 @@ namespace BeamCasing_ButtonCreate
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();//引用stopwatch物件
             sw.Reset();//碼表歸零
             sw.Start();//碼表開始計時
-            errorOutput = "";
             DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
             try
             {
