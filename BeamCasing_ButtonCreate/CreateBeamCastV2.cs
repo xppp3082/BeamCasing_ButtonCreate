@@ -19,6 +19,7 @@ namespace BeamCasing_ButtonCreate
     class CreateBeamCastV2 : IExternalCommand
     {
         public static DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
+
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             //先設置要進行轉換的單位
@@ -29,7 +30,6 @@ namespace BeamCasing_ButtonCreate
                 {
                     UIApplication uiapp = commandData.Application;
                     Autodesk.Revit.ApplicationServices.Application app = uiapp.Application;
-
                     UIDocument uidoc = commandData.Application.ActiveUIDocument;
                     Document doc = uidoc.Document;
 
@@ -179,9 +179,9 @@ namespace BeamCasing_ButtonCreate
 
                                 //調整長度與高度
                                 instance.LookupParameter("開口長").Set(intersection.GetCurveSegment(i).Length + 2 / 30.48); //套管前後加兩公分
-                                double floorHeight = topLevel.Elevation - lowLevel.Elevation;
+                                double floorHeight = topLevel.ProjectElevation - lowLevel.ProjectElevation;
                                 double adjust = instance.LookupParameter("管外半徑").AsDouble();
-                                double toMove2 = tempCenter.Z - topLevel.Elevation + adjust;
+                                double toMove2 = tempCenter.Z - topLevel.ProjectElevation + adjust;
                                 //double toMove = tempCenter.Z-floorHeight + adjust;
                                 //double toMove = instance.LookupParameter("偏移").AsDouble() + adjust;
                                 //double toMove = pickPipe.LookupParameter("偏移").AsDouble() + adjust;

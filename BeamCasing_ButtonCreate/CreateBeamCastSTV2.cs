@@ -179,9 +179,9 @@ namespace BeamCasing_ButtonCreate
                                 Parameter beamWidth = getBeamWidthPara(pickBeam);
                                 instance.LookupParameter("開口長").Set(beamWidth.AsDouble() + 2 / 30.48) ;
                                 //instance.LookupParameter("L").Set(intersection.GetCurveSegment(i).Length + 2 / 30.48); //套管前後加兩公分
-                                double floorHeight = topLevel.Elevation - lowLevel.Elevation;
+                                double floorHeight = topLevel.ProjectElevation - lowLevel.ProjectElevation;
                                 double adjust = instance.LookupParameter("管外半徑").AsDouble();
-                                double toMove2 = tempCenter.Z - topLevel.Elevation + adjust;
+                                double toMove2 = tempCenter.Z - topLevel.ProjectElevation + adjust;
                                 //double toMove = tempCenter.Z-floorHeight + adjust;
                                 //double toMove = instance.LookupParameter("偏移").AsDouble() + adjust;
                                 //double toMove = pickPipe.LookupParameter("偏移").AsDouble() + adjust;

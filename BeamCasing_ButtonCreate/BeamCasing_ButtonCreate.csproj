@@ -40,18 +40,19 @@
     <StartProgram>$(ProgramW6432)\Autodesk\Revit 2019\Revit.exe</StartProgram>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="AdWindows">
+    <Reference Include="AdWindows, Version=2017.11.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
       <HintPath>C:\Program Files\Autodesk\Revit 2019\AdWindows.dll</HintPath>
     </Reference>
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
-    <Reference Include="RevitAPI">
-      <HintPath>$(ProgramW6432)\Autodesk\Revit 2019\RevitAPI.dll</HintPath>
-      <Private>False</Private>
+    <Reference Include="RevitAPI, Version=19.0.0.0, Culture=neutral, processorArchitecture=AMD64">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>C:\Program Files\Autodesk\Revit 2019\RevitAPI.dll</HintPath>
     </Reference>
-    <Reference Include="RevitAPIUI">
-      <HintPath>$(ProgramW6432)\Autodesk\Revit 2019\RevitAPIUI.dll</HintPath>
-      <Private>False</Private>
+    <Reference Include="RevitAPIUI, Version=19.0.0.0, Culture=neutral, processorArchitecture=AMD64">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>C:\Program Files\Autodesk\Revit 2019\RevitAPIUI.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
@@ -59,7 +60,8 @@
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xaml" />
     <Reference Include="System.Xml" />
-    <Reference Include="UIFramework">
+    <Reference Include="UIFramework, Version=19.0.0.0, Culture=neutral, processorArchitecture=AMD64">
+      <SpecificVersion>False</SpecificVersion>
       <HintPath>C:\Program Files\Autodesk\Revit 2019\UIFramework.dll</HintPath>
     </Reference>
     <Reference Include="WindowsBase" />
@@ -87,6 +89,8 @@
     <Compile Include="CopyAllCast.cs" />
     <Compile Include="CreateBeamCastSTV2.cs" />
     <Compile Include="CreateBeamCastV2.cs" />
+    <Compile Include="CreateRectBeamCast.cs" />
+    <Compile Include="MultiBeamRectCast.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
@@ -98,6 +102,8 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="BeamCasing_ButtonCreate.addin" />
+    <None Include="Resources\穿樑套管ICON合集_多管開口.png" />
+    <None Include="Resources\穿樑套管ICON合集_方形開口.png" />
     <Resource Include="Resources\穿樑原則示意修正-01_v2.png" />
     <Resource Include="Resources\穿樑原則示意修正-02_v2.png" />
     <Resource Include="Resources\穿樑原則示意修正-02.png" />

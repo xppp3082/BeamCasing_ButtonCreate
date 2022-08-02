@@ -92,6 +92,11 @@ namespace BeamCasing_ButtonCreate
             System.Drawing.Image image_Copy = Properties.Resources.副穿樑套管ICON合集_複製;
             ImageSource imgSrc6 = GetImageSource(image_Copy);
 
+            System.Drawing.Image image_Rect = Properties.Resources.穿樑套管ICON合集_方形開口;
+            ImageSource imgSrc7 = GetImageSource(image_Rect);
+
+            System.Drawing.Image image_Multi = Properties.Resources.穿樑套管ICON合集_多管開口;
+            ImageSource imgSrc8 = GetImageSource(image_Multi);
 
             // create the button data
             PushButtonData btnData0 = new PushButtonData(
@@ -179,6 +184,30 @@ Assembly.GetExecutingAssembly().Location,
                 btnData6.LargeImage = imgSrc6;
             }
 
+            PushButtonData btnData7 = new PushButtonData(
+"MyButton_CastRect",
+"   方形樑開孔    ",
+Assembly.GetExecutingAssembly().Location,
+"BeamCasing_ButtonCreate.CreateRectBeamCast"
+);
+            {
+                btnData7.ToolTip = "點選外參樑與管生成穿樑套管";
+                btnData7.LongDescription = "先點選需要創建的管段，再點選其穿過的外參樑，生成穿樑套管";
+                btnData7.LargeImage = imgSrc7;
+            }
+
+            PushButtonData btnData8 = new PushButtonData(
+"MyButton_MultiRect",
+"   多管樑開孔    ",
+Assembly.GetExecutingAssembly().Location,
+"BeamCasing_ButtonCreate.MultiBeamRectCast"
+);
+            {
+                btnData8.ToolTip = "點選外參樑與多支管生成穿牆方開口";
+                btnData8.LongDescription = "先點選需要創建的管段(複數)，再點選其穿過的外參牆，生成穿牆方開口";
+                btnData8.LargeImage = imgSrc8;
+            }
+
             //更新穿樑資訊(更新&設定)
             SplitButtonData setUpButtonData = new SplitButtonData("CastSetUpButton", "穿樑套管更新");
             SplitButton splitButton1 = panel.AddItem(setUpButtonData) as SplitButton;
@@ -188,11 +217,10 @@ Assembly.GetExecutingAssembly().Location,
             //創建穿樑套管(ST&RC)
             PushButton button0 = panel.AddItem(btnData0) as PushButton;
             PushButton button = panel.AddItem(btnData) as PushButton;
-
-            //splitButton1.AddPushButton(btnData2);
-            //splitButton1.AddPushButton(btnData3);
-            //PushButton button2 = panel.AddItem(btnData2) as PushButton;
-            //PushButton button3 = panel.AddItem(btnData3) as PushButton;
+            SplitButtonData rectCastButtonData = new SplitButtonData("RectCastButton", "方形穿樑開口");
+            SplitButton splitButton = panel.AddItem(rectCastButtonData) as SplitButton;
+            PushButton button7 = splitButton.AddPushButton(btnData7);
+            button7 = splitButton.AddPushButton(btnData8);
 
             //複製所有套管
             PushButton button6 = panel2.AddItem(btnData6) as PushButton;

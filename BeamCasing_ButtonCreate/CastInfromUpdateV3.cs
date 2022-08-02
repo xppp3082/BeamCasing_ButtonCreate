@@ -25,6 +25,7 @@ namespace BeamCasing_ButtonCreate
             sw.Reset();//碼表歸零
             sw.Start();//碼表開始計時
 
+            //DisplayUnit unit = DisplayUnit.IMPERIAL;
             DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
 
             try
