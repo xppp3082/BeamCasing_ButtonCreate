@@ -15,8 +15,7 @@ using System.Windows.Forms;
 namespace BeamCasing_ButtonCreate
 {
     [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
-
-    class CreateBeamCastV2 : IExternalCommand
+    class CreateBeamCastLink : IExternalCommand
     {
 #if RELEASE2019
         public static DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
@@ -25,8 +24,6 @@ namespace BeamCasing_ButtonCreate
 #endif
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-            //先設置要進行轉換的單位
-            //DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
             while (true)
             {
                 Counter.count += 1;
@@ -37,12 +34,13 @@ namespace BeamCasing_ButtonCreate
                     UIDocument uidoc = commandData.Application.ActiveUIDocument;
                     Document doc = uidoc.Document;
 
-#region 蒐集管與外參樑，關係為多管對一樑
+                    #region 蒐集管與外參樑，關係為多管對一樑
                     //點選要放置穿樑套管的管段
-                    //List<Element> pickPipes = new List<Element>();//創建一個容器放置管段
-                    ISelectionFilter pipefilter = new PipeSelectionFilter();
-                    Reference pickElement_refer = uidoc.Selection.PickObject(ObjectType.Element, pipefilter, $"請選擇欲放置穿樑套管的管段");
-                    Element pickPipe = doc.GetElement(pickElement_refer.ElementId);
+                    ISelectionFilter linkPipefilter = new linkedPipeSelectionFilter(doc);
+                    Reference refer = uidoc.Selection.PickObject(ObjectType.LinkedElement, linkPipefilter, $"請選擇「連結模型」中欲放置穿樑套管的管段");
+                    RevitLinkInstance pipeLinkedInst = doc.GetElement(refer.ElementId) as RevitLinkInstance;
+                    Transform pipeLinkedTrans = pipeLinkedInst.GetTotalTransform();
+                    Element linkedPipe = pipeLinkedInst.GetLinkDocument().GetElement(refer.LinkedElementId);
 
                     //點選要取交集的外參樑
                     ISelectionFilter beamFilter = new BeamsLinkedSelectedFilter(doc);
@@ -53,20 +51,14 @@ namespace BeamCasing_ButtonCreate
                     Transform linkTransform = beamLinkInst.GetTotalTransform();
                     LocationCurve beamLocate = pickBeam.Location as LocationCurve;
                     Line beamLine = beamLocate.Curve as Line;
-                    double angle = 0.0;
-                    bool isLiner = false;
-                    if (beamLine != null)
-                    {
-                        isLiner = true;
-                        XYZ beamDir = beamLine.Direction.Normalize();
-                        XYZ beamNorDir = beamDir.CrossProduct(XYZ.BasisZ).Normalize().Negate();
-                        XYZ holeDir = XYZ.BasisY;
-                        angle = holeDir.AngleTo(beamNorDir);
-                    }
+                    XYZ beamDir = beamLine.Direction.Normalize();
+                    XYZ beamNorDir = beamDir.CrossProduct(XYZ.BasisZ).Normalize().Negate();
+                    XYZ holeDir = XYZ.BasisY;
+                    double angle = holeDir.AngleTo(beamNorDir);
                     #endregion
+
                     Family RC_Cast;
 
-                    //載入元件檔
                     using (Transaction tx = new Transaction(doc))
                     {
                         tx.Start("載入檔案測試");
@@ -80,8 +72,26 @@ namespace BeamCasing_ButtonCreate
                     levelCollector.WherePasses(level_Filter).WhereElementIsNotElementType().ToElements();
 
                     List<string> levelNames = new List<string>(); //用名字來確認篩選排序
-                    MEPCurve pipeCrv = pickPipe as MEPCurve;
-                    Level lowLevel = pipeCrv.ReferenceLevel; //管在的樓層為下樓層
+                    MEPCurve pipeCrv = linkedPipe as MEPCurve;
+                    //Level lowLevel = pipeCrv.ReferenceLevel; //管在的樓層為下樓層
+                    Level lowLevel = null; //管在的樓層為下樓層
+
+                    string LevelName = pipeCrv.ReferenceLevel.Name;
+                    Level sourceLevel = pipeCrv.ReferenceLevel;
+                    FilteredElementCollector levelFilter = new FilteredElementCollector(doc).OfClass(typeof(Level));
+                    foreach (Level le in levelFilter)
+                    {
+                        if (le.Name == LevelName || le.ProjectElevation == sourceLevel.ProjectElevation)
+                        {
+                            lowLevel = le;
+                        }
+                    }
+
+                    if (lowLevel == null)
+                    {
+                        MessageBox.Show("請確認「連結模型」中的樓層命名原則是否和本機端一致");
+                        return Result.Failed;
+                    }
                     List<Element> level_List = levelCollector.OrderBy(x => sortLevelbyHeight(x)).ToList();
 
                     for (int i = 0; i < level_List.Count(); i++)
@@ -89,12 +99,9 @@ namespace BeamCasing_ButtonCreate
                         Level le = level_List[i] as Level;
                         levelNames.Add(le.Name);
                     }
-
-                    //利用index反查樓層的位置，就可以用這個方式反推他的上一個樓層
                     int index_lowLevel = levelNames.IndexOf(lowLevel.Name);
                     int index_topLevel = index_lowLevel + 1;
                     Level topLevel = null;
-
                     if (index_topLevel < level_List.Count())
                     {
                         topLevel = level_List[index_topLevel] as Level;
@@ -104,7 +111,6 @@ namespace BeamCasing_ButtonCreate
                         message = "管的上方沒有樓層，無法計算穿樑套管偏移值";
                         return Result.Failed;
                     }
-
                     //尋找連結模型中的元素_方法2
                     IList<FamilyInstance> CastList = new List<FamilyInstance>(); //創造一個裝每次被創造出來的familyinstance的容器，用來以bounding box計算bop&top
                     FamilyInstance instance = null;
@@ -115,26 +121,16 @@ namespace BeamCasing_ButtonCreate
                     using (Transaction trans = new Transaction(doc))
                     {
                         trans.Start("放置穿樑套管");
-                        //int a = 0;
-                        //foreach (Element e in pickBeams)
-                        //{
-                        //Transform tempTrans = beamTransfroms[a]
-                        //a = a + 1;
                         Solid solid = singleSolidFromElement(pickBeam);
                         solid = SolidUtils.CreateTransformed(solid, linkTransform);
                         if (null != solid)
                         {
                             SolidCurveIntersectionOptions options = new SolidCurveIntersectionOptions();
-                            LocationCurve locationCurve = pickPipe.Location as LocationCurve;
+                            LocationCurve locationCurve = linkedPipe.Location as LocationCurve;
                             Curve pipeCurve = locationCurve.Curve;
                             SolidCurveIntersection intersection = solid.IntersectWithCurve(pipeCurve, options);
                             intersectCount = intersection.SegmentCount;
                             totalIntersectCount += intersectCount;
-
-                            ////選擇完外參樑後，建立一個List裝取所有在這跟外參樑中的套管
-                            //List<Element> castsInThisBeam = otherCast(doc, solid);
-
-
                             for (int i = 0; i < intersectCount; i++)
                             {
                                 intersectLength += intersection.GetCurveSegment(i).Length;
@@ -142,9 +138,7 @@ namespace BeamCasing_ButtonCreate
                                 XYZ tempCenter = tempCurve.Evaluate(0.5, true);
                                 double tempStart = tempCurve.GetEndPoint(0).Z;
                                 double tempEnd = tempCurve.GetEndPoint(1).Z;
-                                FamilySymbol CastSymbol2 = new BeamCast().findRC_CastSymbol(doc, RC_Cast, pickPipe);
-
-
+                                FamilySymbol CastSymbol2 = new BeamCast().findRC_CastSymbol(doc, RC_Cast, linkedPipe);
                                 instance = doc.Create.NewFamilyInstance(tempCenter, CastSymbol2, topLevel, StructuralType.NonStructural);
 
                                 List<string> paraNameToCheck = new List<string>()
@@ -169,7 +163,6 @@ namespace BeamCasing_ButtonCreate
 #if RELEASE2019
                                 instance.LookupParameter("偏移").Set(toMove);
 #else
-                                //if Revit 2023
                                 instance.get_Parameter(BuiltInParameter.FLOOR_HEIGHTABOVELEVEL_PARAM).Set(toMove);
 #endif
                                 //旋轉角度
@@ -182,13 +175,6 @@ namespace BeamCasing_ButtonCreate
                                 XYZ projectEnd = intersection.GetCurveSegment(i).GetEndPoint(1);
                                 XYZ projectEndAdj = new XYZ(projectEnd.X, projectEnd.Y, projectStart.Z);
 
-#region 舊的旋轉方法，以管的角度為主，在遇到斜樑時會出事。
-                                ////Line intersectLine = intersection.GetCurveSegment(i) as Line;
-                                //Line intersectProject = Line.CreateBound(projectStart, projectEndAdj);
-                                //double degree = 0.0;
-                                //degree = basePoint.AngleTo(intersectProject.Direction);
-                                //instance.Location.Rotate(Axis, degree);
-#endregion
 
                                 //重新以樑的locationCurve 計算旋轉角度
                                 Curve beamCurve = beamLocate.Curve;
@@ -204,46 +190,13 @@ namespace BeamCasing_ButtonCreate
                                 degree = -basePoint.AngleTo(beamCrvProject.Direction) - Math.PI / 2;
                                 double degree2 = Math.Abs(-basePoint.AngleTo(beamCrvProject.Direction) - Math.PI / 2) * 180 / Math.PI;
                                 double degreeCheck = Math.Round(degree2, 0);
-                                if (isLiner != true)
-                                {
-                                    instance.Location.Rotate(Axis, degree);
-                                }
-                                else
-                                {
-                                    instance.Location.Rotate(Axis, angle);
-                                }
-
+                                //instance.Location.Rotate(Axis, degree);
+                                instance.Location.Rotate(Axis, angle);
 
                                 //針對已在樑中的穿樑套管做檢核
                                 double casrCreatedWidth = instance.get_BoundingBox(null).Max.Z - instance.get_BoundingBox(null).Min.Z;
                                 LocationPoint castCreatedLocate = instance.Location as LocationPoint;
                                 XYZ castCreatedXYZ = castCreatedLocate.Point;
-
-#region 在放置時就檢查使否過近的功能，目前暫不需要
-                                //if (castsInThisBeam.Count() > 0)
-                                //{
-                                //    foreach (Element cast in castsInThisBeam)
-                                //    {
-                                //        //取得這個在樑中套管的「寬度」
-                                //        double castWidth = cast.get_BoundingBox(null).Max.Z - cast.get_BoundingBox(null).Min.Z;
-                                //        LocationPoint locatePt = cast.Location as LocationPoint;
-                                //        XYZ locateXYZ = locatePt.Point;
-
-                                //        //調整每個穿樑套管的點位到與正在創造的這個至同樣高度後，測量距離
-                                //        XYZ locateAdjust = new XYZ(locateXYZ.X, locateXYZ.Y, castCreatedXYZ.Z);
-                                //        double distBetween = castCreatedXYZ.DistanceTo(locateAdjust);
-
-                                //        //如果水平向距離太近，則無法放置穿樑套管
-                                //        if (distBetween < (casrCreatedWidth + castWidth) * 1.5)
-                                //        {
-                                //            elements.Insert(cast);
-                                //            message = "管離亮顯的套管太近，無法放置穿樑套管";
-                                //            return Result.Failed;
-                                //        }
-
-                                //    }
-                                //}
-#endregion
 
                                 //設定BOP、TOP
                                 if (intersectCount > 0)
@@ -290,30 +243,6 @@ namespace BeamCasing_ButtonCreate
                                     {
                                         alertValue = min_alertValue;
                                     }
-
-#region 在放置時就檢查使否過近的功能，目前暫不需要
-                                    //if (instanceHeight > beamHeight / 3)
-                                    //{
-                                    //    //設定如果穿樑套管>該樑斷面的1/3，則無法放置穿樑套管
-                                    //    message = "樑的斷面尺寸過小，無法放置穿樑套管，請將亮顯的管線改走樑下";
-                                    //    elements.Insert(pickPipe);
-                                    //    return Result.Failed;
-                                    //}
-                                    //else if (BBOP < alertValue)
-                                    //{
-                                    //    message = "管離「樑底部」過近，請調整後重新放置穿樑套管";
-                                    //    //MessageBox.Show("管離「樑底部」過近，請調整後重新放置穿樑套管");
-                                    //    elements.Insert(pickPipe);
-                                    //    return Result.Failed;
-                                    //}
-                                    //else if (TTOP < alertValue)
-                                    //{
-                                    //    message = "管離「樑頂部」過近，請調整後重新放置穿樑套管";
-                                    //    //MessageBox.Show("管離「樑頂部」過近，請調整後重新放置穿樑套管");
-                                    //    elements.Insert(pickPipe);
-                                    //    return Result.Failed;
-                                    //}
-#endregion
                                 }
                             }
                         }
@@ -327,93 +256,19 @@ namespace BeamCasing_ButtonCreate
                         }
                         trans.Commit();
                     }
-                    //}
                 }
                 catch
                 {
-                    //MessageBox.Show("執行失敗喔!");
-                    //return Result.Failed;
                     break;
                 }
             }
             return Result.Succeeded;
         }
-
-
-
-        public List<Element> otherCast(Document doc, Solid solid)
-        {
-            List<Element> castIntersected = new List<Element>();
-            FilteredElementCollector otherCastCollector = new FilteredElementCollector(doc);
-            ElementFilter RC_CastFilter = new ElementCategoryFilter(BuiltInCategory.OST_PipeAccessory);
-            ElementFilter Cast_InstFilter = new ElementClassFilter(typeof(FamilyInstance));
-            LogicalAndFilter andFilter = new LogicalAndFilter(RC_CastFilter, Cast_InstFilter);
-            Outline beamOtLn = new Outline(solid.GetBoundingBox().Min, solid.GetBoundingBox().Min);
-            //BoundingBoxIntersectsFilter beamBoundingBoxFilter = new BoundingBoxIntersectsFilter(beamOtLn);
-            otherCastCollector.WherePasses(andFilter).WhereElementIsNotElementType();
-            //otherCastCollector.WherePasses(beamBoundingBoxFilter).ToElements();
-            otherCastCollector.WherePasses(new ElementIntersectsSolidFilter(solid));
-            foreach (FamilyInstance e in otherCastCollector)
-            {
-                if (e.Symbol.FamilyName == "穿樑套管共用參數_通用模型")
-                {
-                    castIntersected.Add(e);
-                }
-            }
-            return castIntersected;
-        }
-
-        //製作用來排序樓層的方法
         public double sortLevelbyHeight(Element element)
         {
             Level tempLevel = element as Level;
             double levelHeight = tempLevel.Elevation;
             return levelHeight;
-        }
-
-
-        //建立管過濾器
-        public class PipeSelectionFilter : Autodesk.Revit.UI.Selection.ISelectionFilter
-        {
-            public bool AllowElement(Element element)
-            {
-                if (element.Category.Name == "管" || element.Category.Name == "電管" || element.Category.Name == "風管")
-                {
-                    return true;
-                }
-                return false;
-            }
-            public bool AllowReference(Reference refer, XYZ point)
-            {
-                return false;
-            }
-        }
-
-        //建立外參樑過濾器
-        public class BeamsLinkedSelectedFilter : ISelectionFilter
-        {
-            Autodesk.Revit.DB.Document doc = null;
-
-            public BeamsLinkedSelectedFilter(Document document)
-            {
-                doc = document;
-            }
-            public bool AllowElement(Element element)
-            {
-                return true;
-            }
-            public bool AllowReference(Reference reference, XYZ point)
-            {
-                RevitLinkInstance revitLinkInstance = doc.GetElement(reference) as RevitLinkInstance;
-                Autodesk.Revit.DB.Document docLink = revitLinkInstance.GetLinkDocument();
-                Element eBeamsLink = docLink.GetElement(reference.LinkedElementId);
-                FamilyInstance instRC = eBeamsLink as FamilyInstance;
-                if (eBeamsLink.Category.Name == "結構構架" && instRC.StructuralMaterialType.ToString() == "Concrete")
-                {
-                    return true;
-                }
-                return false;
-            }
         }
         public IList<Solid> GetTargetSolids(Element element)
         {
@@ -510,144 +365,6 @@ namespace BeamCasing_ButtonCreate
             double yTemp = x * val.Y + y * val2.Y + z * val3.Y + origin.Y;
             double zTemp = x * val.Z + y * val2.Z + z * val3.Z + origin.Z;
             return new XYZ(xTemp, yTemp, zTemp);
-        }
-    }
-    public class BeamCast
-    {
-        //將穿樑套管設置為class，需要符合下列幾種功能
-        //1.先匯入我們目前所有的穿樑套管
-        //2.再來判斷選中的管徑與是否有穿過梁，以及穿過的樑種類
-        //3.如果有則利用穿過的部分為終點，創造穿樑套管與輸入長度
-
-#if RELEASE2019
-        public static DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
-#else
-        public static ForgeTypeId unitType = UnitTypeId.Millimeters;
-#endif
-
-        //載入RC穿樑套管元件
-        public Family BeamCastSymbol(Document doc)
-        {
-            //尋找RC樑開口.rfa
-            string internalNameRC = "CEC-穿樑套管-圓";
-            //string RC_CastName = "穿樑套管共用參數_通用模型";
-            Family RC_CastType = null;
-            ElementFilter RC_CastCategoryFilter = new ElementCategoryFilter(BuiltInCategory.OST_PipeAccessory);
-            ElementFilter RC_CastSymbolFilter = new ElementClassFilter(typeof(FamilySymbol));
-
-            LogicalAndFilter andFilter = new LogicalAndFilter(RC_CastCategoryFilter, RC_CastSymbolFilter);
-            FilteredElementCollector RC_CastSymbol = new FilteredElementCollector(doc);
-            RC_CastSymbol = RC_CastSymbol.WherePasses(andFilter);//這地方有點怪，無法使用andFilter RC_CastSymbolFilter
-            bool symbolFound = false;
-            foreach (FamilySymbol e in RC_CastSymbol)
-            {
-                Parameter p = e.LookupParameter("API識別名稱");
-                if (p != null && p.AsString().Contains(internalNameRC))
-                {
-                    symbolFound = true;
-                    RC_CastType = e.Family;
-                    break;
-                }
-            }
-            if (!symbolFound)
-            {
-                MessageBox.Show("尚未載入指定的穿樑套管元件!");
-            }
-            #region 自己載入元件的方法
-            ////如果沒有找到，則自己加載
-            //if (!symbolFound)
-            //{
-            //    string filePath = @"D:\Dropbox (CHC Group)\工作人生\組內專案\04.元件製作\穿樑套管\穿樑套管共用參數_通用模型.rfa";
-            //    Family family;
-            //    bool loadSuccess = doc.LoadFamily(filePath, out family);
-            //    if (loadSuccess)
-            //    {
-            //        RC_CastType = family;
-            //    }
-            //}
-            #endregion
-            return RC_CastType;
-        }
-
-        //根據不同的管徑，選擇不同的穿樑套管大小
-        public FamilySymbol findRC_CastSymbol(Document doc, Family CastFamily, Element element)
-        {
-            FamilySymbol targetFamilySymbol = null; //用來找目標familySymbol
-            Parameter targetPara = null;
-            //Pipe
-            if (element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM) != null)
-            {
-                targetPara = element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM);
-            }
-            //Conduit
-            else if (element.get_Parameter(BuiltInParameter.RBS_CONDUIT_DIAMETER_PARAM) != null)
-            {
-                targetPara = element.get_Parameter(BuiltInParameter.RBS_CONDUIT_DIAMETER_PARAM);
-            }
-            //Duct
-            else if (element.get_Parameter(BuiltInParameter.RBS_CURVE_DIAMETER_PARAM) != null)
-            {
-                targetPara = element.get_Parameter(BuiltInParameter.RBS_CURVE_DIAMETER_PARAM);
-            }
-            else if (element.get_Parameter(BuiltInParameter.RBS_CURVE_WIDTH_PARAM) != null)
-            {
-                targetPara = element.get_Parameter(BuiltInParameter.RBS_CURVE_WIDTH_PARAM);
-            }
-            //利用管徑(doubleType)來判斷
-            var covertUnit = UnitUtils.ConvertFromInternalUnits(targetPara.AsDouble(), unitType);
-            if (CastFamily != null)
-            {
-                foreach (ElementId castId in CastFamily.GetFamilySymbolIds())
-                {
-                    FamilySymbol tempSymbol = doc.GetElement(castId) as FamilySymbol;
-                    if (covertUnit >= 50 && covertUnit < 65)
-                    {
-                        if (tempSymbol.Name == "80mm")
-                        {
-                            targetFamilySymbol = tempSymbol;
-                        }
-                    }
-                    else if (covertUnit >= 65 && covertUnit < 75)
-                    {
-                        if (tempSymbol.Name == "100mm")
-                        {
-                            targetFamilySymbol = tempSymbol;
-                        }
-                    }
-                    //多出關於電管的判斷
-                    else if (covertUnit >= 75 && covertUnit <= 95)
-                    {
-                        if (tempSymbol.Name == "125mm")
-                        {
-                            targetFamilySymbol = tempSymbol;
-                        }
-                    }
-                    else if (covertUnit >= 100 && covertUnit < 125)
-                    {
-                        if (tempSymbol.Name == "150mm")
-                        {
-                            targetFamilySymbol = tempSymbol;
-                        }
-                    }
-                    else if (covertUnit >= 125 && covertUnit <= 150)
-                    {
-                        if (tempSymbol.Name == "150mm")
-                        {
-                            targetFamilySymbol = tempSymbol;
-                        }
-                    }
-                    else
-                    {
-                        if (tempSymbol.Name == "80mm")
-                        {
-                            targetFamilySymbol = tempSymbol;
-                        }
-                    }
-                }
-            }
-            if (targetFamilySymbol == null) MessageBox.Show("請確認穿牆套管元件中是否有對應管徑之族群類型");
-            targetFamilySymbol.Activate();
-            return targetFamilySymbol;
         }
     }
 }

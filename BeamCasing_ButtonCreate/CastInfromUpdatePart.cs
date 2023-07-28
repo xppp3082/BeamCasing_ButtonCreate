@@ -18,7 +18,7 @@ using System.Threading;
 namespace BeamCasing_ButtonCreate
 {
     [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
-    class CastInfromUpdateV4 : IExternalCommand
+    class CastInfromUpdatePart : IExternalCommand
     {
 #if RELEASE2019
         public static DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
@@ -26,7 +26,6 @@ namespace BeamCasing_ButtonCreate
         public static ForgeTypeId unitType = UnitTypeId.Millimeters;
 #endif
         public static string errorOutput = "";
-
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             Counter.count += 1;
@@ -113,6 +112,8 @@ namespace BeamCasing_ButtonCreate
                             updateCastMaterial(doc.GetElement(tempId), castDict[tempId].First());
                             updateCastContent(doc, doc.GetElement(tempId));
                             //如果只有一支，以該支樑為準
+                            //要想個辦法將每隻樑究竟是SC還是SRC構造分開，或許是將Dictionary的結構改成Class? 以此記下每隻套管干涉的對象，以及構造類型等等
+
                             if (castDict[tempId].Count == 1)
                             {
                                 modifyCastLen(doc.GetElement(tempId), castDict[tempId][0]);
@@ -445,7 +446,7 @@ namespace BeamCasing_ButtonCreate
             List<FamilyInstance> castInstances = new List<FamilyInstance>();
             try
             {
-                FilteredElementCollector coll = new FilteredElementCollector(doc);
+                FilteredElementCollector coll = new FilteredElementCollector(doc, doc.ActiveView.Id);
                 ElementCategoryFilter castCate_Filter = new ElementCategoryFilter(BuiltInCategory.OST_PipeAccessory);
                 ElementClassFilter castInst_Filter = new ElementClassFilter(typeof(Instance));
                 LogicalAndFilter andFilter = new LogicalAndFilter(castCate_Filter, castInst_Filter);
@@ -474,11 +475,10 @@ namespace BeamCasing_ButtonCreate
             }
             catch
             {
-                MessageBox.Show("蒐集套管發生問題!");
+                //MessageBox.Show("蒐集套管發生問題!");
             }
             return castInstances;
         }
-
         public List<FamilyInstance> findLinkTargetElements(Document doc)
         {
             List<RevitLinkInstance> linkInstanceList = getMEPLinkInstance(doc);
@@ -583,16 +583,21 @@ namespace BeamCasing_ButtonCreate
                             ElementIntersectsSolidFilter elementIntersectsSolidFilter = new ElementIntersectsSolidFilter(castSolid);
                             collectorSC.WherePasses(boundingBoxIntersectsFilter).WherePasses(elementIntersectsSolidFilter);
 
-                            List<Element> tempList = collectorSC.OrderByDescending(x=>calculateSolidVol(doc.GetElement(inst.Id),x,totalTransform)).ToList();
+                            ////List<Element> tempList = collectorSC.ToList();
+                            //List<Element> tempList = collectorSC.OrderByDescending(x => calculateSolidVol(doc.GetElement(inst.Id), x, totalTransform)).ToList();
+                            List<Element> tempList = collectorSC.OrderByDescending(x => calculateSolidVol(doc.GetElement(inst.Id), x, totalTransform)).ToList();
+                            List<Element> targetList = new List<Element>() { tempList.First() };
                             //如果有蒐集到東西，而且在字典中尚未有此套管
                             if (tempList.Count > 0 && !castBeamDict.Keys.Contains(inst.Id))
                             {
-                                castBeamDict.Add(inst.Id, tempList);
+                                //castBeamDict.Add(inst.Id, tempList);
+                                castBeamDict.Add(inst.Id, targetList);
                             }
                             //如果有蒐集到東西，字典中已有此套管
                             else if (tempList.Count > 0 && castBeamDict.Keys.Contains(inst.Id))
                             {
-                                foreach (Element e in tempList)
+                                //foreach (Element e in tempList)
+                                foreach (Element e in targetList)
                                 {
                                     castBeamDict[inst.Id].Add(e);
                                 }
@@ -736,7 +741,7 @@ namespace BeamCasing_ButtonCreate
                 {
                     errorOutput += $"注意，ID為 {elem.Id} 的套管被固定無法移動，請檢查是否為有意不想移動之元素!\n";
                 }
-               else if (!castPt.IsAlmostEqualTo(targetPoint) && elem.Pinned == false)
+                else if (!castPt.IsAlmostEqualTo(targetPoint) && elem.Pinned == false)
                 {
                     ElementTransformUtils.MoveElement(document, inst.Id, positionChange);
                     //再調整套管長度
@@ -1310,5 +1315,9 @@ namespace BeamCasing_ButtonCreate
             }
             return linkInstanceList;
         }
+    }
+    public class beamCast
+    {
+
     }
 }

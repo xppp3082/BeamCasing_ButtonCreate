@@ -17,9 +17,14 @@ namespace BeamCasing_ButtonCreate
     [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     class ReUpdateCastNumber : IExternalCommand
     {
+#if RELEASE2019
+        public static DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
+#else
+        public static ForgeTypeId unitType = UnitTypeId.Millimeters;
+#endif
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-            DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
+            Counter.count += 1;
             try
             {
                 UIApplication uiapp = commandData.Application;
@@ -65,10 +70,9 @@ namespace BeamCasing_ButtonCreate
                         }
                         if (totalCount == 0)
                         {
-                            MessageBox.Show("模型中沒有任何穿牆套管，無法編號");
+                            MessageBox.Show("模型中沒有任何穿樑套管，無法編號");
                             return Result.Failed;
                         }
-                        trans.Commit();
                         trans.Commit();
                     }
                     MessageBox.Show("穿樑套管重新編號完畢!");
@@ -97,15 +101,19 @@ namespace BeamCasing_ButtonCreate
             List<FamilyInstance> targetList = new List<FamilyInstance>();
             ElementLevelFilter levelFilter = new ElementLevelFilter(level.Id);
             FilteredElementCollector castCollector = new FilteredElementCollector(level.Document).OfCategory(BuiltInCategory.OST_PipeAccessory).OfClass(typeof(FamilyInstance)).WherePasses(levelFilter).WhereElementIsNotElementType();
-            foreach (FamilyInstance inst in castCollector)
+            if (castCollector.Count() > 0)
             {
-                //針對checkName一定要確認是否為null，因為有些元件沒有此參數
-                Parameter checkName = inst.Symbol.LookupParameter("API識別名稱");
-                if (checkName != null && checkName.AsString().Contains("CEC-穿樑"))
+                foreach (FamilyInstance inst in castCollector)
                 {
-                    targetList.Add(inst);
+                    //針對checkName一定要確認是否為null，因為有些元件沒有此參數
+                    Parameter checkName = inst.Symbol.LookupParameter("API識別名稱");
+                    if (checkName != null && checkName.AsString().Contains("CEC-穿樑"))
+                    {
+                        targetList.Add(inst);
+                    }
                 }
             }
+         
             return targetList;
         }
         public XYZ getCastPt(FamilyInstance inst)

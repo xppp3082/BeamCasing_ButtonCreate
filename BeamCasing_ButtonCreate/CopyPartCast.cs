@@ -15,7 +15,7 @@ using System.Windows.Forms;
 namespace BeamCasing_ButtonCreate
 {
     [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
-    class CopyAllCast : IExternalCommand
+    class CopyPartCast : IExternalCommand
     {
 #if RELEASE2019
         public static DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
@@ -24,60 +24,58 @@ namespace BeamCasing_ButtonCreate
 #endif
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
+            //針對樓層複製穿梁套管
             Counter.count += 1;
             string messageOut = "";
             int copyNum = 0;
             try
             {
-                //1.蒐集該檔案中所有的樓層元素
-                //2.依照樓層篩選出實做的套管
-                //3.以該樓層為基準，複製所有的套管
                 UIApplication uiapp = commandData.Application;
                 Autodesk.Revit.ApplicationServices.Application app = uiapp.Application;
                 UIDocument uidoc = commandData.Application.ActiveUIDocument;
                 Document doc = uidoc.Document;
-                Dictionary<Transform, List<FamilyInstance>> linkCastDict = getLinkedCastDict(doc);
+                Autodesk.Revit.DB.View activeView = doc.ActiveView;
+                if (activeView.ViewType != ViewType.FloorPlan)
+                {
+                    MessageBox.Show("請於平面試圖中使用此功能");
+                    return Result.Failed;
+                }
+
+                //針對穿梁套管的特性選擇視圖的上一層為複製依據
+                Level viewLevel = activeView.GenLevel;
+                FilteredElementCollector levelCollector = new FilteredElementCollector(doc).OfClass(typeof(Level));
+                List<Element> level_List = levelCollector.OrderBy(x => sortLevelbyHeight(x)).ToList();
+                List<string> levelNames = new List<string>(); //用名字來確認篩選排序
+                for (int i = 0; i < level_List.Count(); i++)
+                {
+                    Level le = level_List[i] as Level;
+                    levelNames.Add(le.Name);
+                }
+                int orginIndex = levelNames.IndexOf(viewLevel.Name);
+                viewLevel = level_List[orginIndex + 1] as Level;
+                Dictionary<Transform, List<FamilyInstance>> linkCastDict = getLinkedCastDictByLevel(doc, viewLevel);
+
                 if (linkCastDict.Keys.Count() == 0)
                 {
                     MessageBox.Show("沒有實做的連結模型!");
                 }
-                //先蒐集在這個模型中所有穿樑套管的座標點
-                List<FamilyInstance> targetInstList = findTargetElements(doc);
+                //先蒐集在這個層樓中所有穿樑套管的座標點
+                List<FamilyInstance> targetInstList = findTargetElementsByLevel(doc, viewLevel);
                 List<bool> alreadyExist = new List<bool>();
-                #region 重複的檢核機制
-                //不知道為什麼不行用pt Contain進行
-                //List<XYZ> existPts = new List<XYZ>();
-                //foreach (FamilyInstance inst in targetInstList)
-                //{
-                //    LocationPoint instLocate = inst.Location as LocationPoint;
-                //    XYZ instPt = instLocate.Point;
-                //    existPts.Add(instPt);
-                //}
-                #endregion
 
                 using (Transaction trans = new Transaction(doc))
                 {
                     int deleteNum = 0;
-                    trans.Start("複製所有外參檔中的穿樑套管");
-                    #region 先刪掉既有的
-                    //if (targetInstList.Count > 0)
-                    //{
-                    //    foreach (FamilyInstance inst in targetInstList)
-                    //    {
-                    //        doc.Delete(inst.Id);
-                    //    }
-                    //}
-                    #endregion
-                    //先刪掉在本機端中多的
+                    trans.Start($"複製{viewLevel.Name}中的穿梁套管");
                     foreach (FamilyInstance cast in targetInstList)
                     {
-                        if (!InstanceExistinLink(doc, cast))
+                        if (!InstanceExistinLinkByLevel(doc, cast, viewLevel))
                         {
                             doc.Delete(cast.Id);
                             deleteNum += 1;
                         }
                     }
-                    MessageBox.Show($"本模型共刪除 {deleteNum} 個多餘的套管");
+                    MessageBox.Show($"本模型共刪除{viewLevel.Name} 中 {deleteNum} 個多餘的套管");
                     foreach (Transform t in linkCastDict.Keys)
                     {
                         //因為是以外參實體為單位去做實體蒐集
@@ -91,7 +89,7 @@ namespace BeamCasing_ButtonCreate
                             XYZ linkedPt = linkedInstLocate.Point;
                             linkedPt = TransformPoint(linkedPt, t);
                             //準備要複製的這個跟已經有的去做比對，如果已經在模型中，則不複製，不在則需要複製
-                            if (!InstanceExist(doc, linkedPt))
+                            if (!InstanceExistByLevel(doc, linkedPt,viewLevel))
                             {
                                 tempList.Add(inst.Id);
                             }
@@ -107,8 +105,8 @@ namespace BeamCasing_ButtonCreate
                             ElementTransformUtils.CopyElements(linkDoc, temp, doc, t, options);
                         }
 
-                        //多的要刪掉
                     }
+                    messageOut += $"連結模型中位於{viewLevel.Name}的穿樑套管已全數複製完成，共複製了 {copyNum} 個套管!\n";
                     trans.Commit();
                 }
             }
@@ -117,25 +115,70 @@ namespace BeamCasing_ButtonCreate
                 MessageBox.Show("執行失敗");
                 return Result.Failed;
             }
-            messageOut += $"連結模型中的穿樑套管已全數複製完成，共複製了 {copyNum} 個套管!\n";
+
             MessageBox.Show(messageOut);
             return Result.Succeeded;
         }
-        public IList<Level> findAllLevel(Document doc)
+        public Level getTargetLevelfromLink(RevitLinkInstance linkInst, Level localLevel)
         {
-            IList<Element> targetList = null;
-            List<Level> sortList = new List<Level>();
-            FilteredElementCollector levelCollector = new FilteredElementCollector(doc);
-            ElementFilter level_Filter = new ElementCategoryFilter(BuiltInCategory.OST_Levels);
-            levelCollector.OfClass(typeof(Level)).WherePasses(level_Filter).WhereElementIsNotElementType();
-            targetList = levelCollector.ToElements();
-            //targetList = levelCollector.ToElements();
-            foreach (Level level in targetList)
+            Level targetLevel = null;
+            Document linkDoc = linkInst.GetLinkDocument();
+            FilteredElementCollector levelCollector = new FilteredElementCollector(linkDoc).OfClass(typeof(Level));
+            
+            foreach (Element e in levelCollector)
             {
-                sortList.Add(level);
+                Element localElement = localLevel as Element;
+                Level tempLevel = e as Level;
+                if (e.Name == localLevel.Name || tempLevel.ProjectElevation == localLevel.ProjectElevation)
+                {
+                    targetLevel = tempLevel;
+                    break;
+                }
             }
-            sortList.OrderBy(x => x.Elevation);
-            return sortList;
+            if (targetLevel == null) MessageBox.Show("請確認外參模型與本機端模型的高程與命名原則是否一致");
+            return targetLevel;
+        }
+        public Dictionary<Transform, List<FamilyInstance>> getLinkedCastDictByLevel(Document doc, Level localLevel)
+        {
+            Dictionary<Transform, List<FamilyInstance>> linkCastBeamDict = new Dictionary<Transform, List<FamilyInstance>>();
+            List<RevitLinkInstance> linkedMEP_files = getMEPLinkInstance(doc);
+            foreach (RevitLinkInstance linkInst in linkedMEP_files)
+            {
+                List<FamilyInstance> targetList = new List<FamilyInstance>();
+                Transform linkTrans = linkInst.GetTotalTransform();
+                Document linkDoc = linkInst.GetLinkDocument();
+
+                Level linkedLevel = getTargetLevelfromLink(linkInst, localLevel);
+                ElementLevelFilter levelFilter = new ElementLevelFilter(linkedLevel.Id);
+                FilteredElementCollector linkCastCollector = new FilteredElementCollector(linkDoc).OfCategory(BuiltInCategory.OST_PipeAccessory).OfClass(typeof(Instance)).WherePasses(levelFilter);
+                foreach (FamilyInstance inst in linkCastCollector)
+                {
+                    //針對checkName一定要確認是否為null，因為有些元件沒有此參數
+                    Parameter checkName = inst.Symbol.LookupParameter("API識別名稱");
+                    if (checkName != null && checkName.AsString().Contains("CEC-穿樑"))
+                    {
+                        targetList.Add(inst);
+                    }
+                }
+                //MessageBox.Show($"{linkDoc.Title}的{localLevel.Name}中共有{ targetList.Count()}個套管");
+                //如果有蒐集到套管
+                if (targetList.Count() > 0)
+                {
+                    if (!linkCastBeamDict.Keys.Contains(linkTrans))
+                    {
+                        linkCastBeamDict.Add(linkTrans, targetList);
+                    }
+                    else if (linkCastBeamDict.Keys.Contains(linkTrans))
+                    {
+                        //continue;
+                        foreach (FamilyInstance inst in targetList)
+                        {
+                            linkCastBeamDict[linkTrans].Add(inst);
+                        }
+                    }
+                }
+            }
+            return linkCastBeamDict;
         }
         public List<RevitLinkInstance> getMEPLinkInstance(Document doc)
         {
@@ -166,7 +209,7 @@ namespace BeamCasing_ButtonCreate
             }
             return linkInstanceList;
         }
-        public List<FamilyInstance> findTargetElements(Document doc)
+        public List<FamilyInstance> findTargetElementsByLevel(Document doc, Level le)
         {
             //RC套管跟SC開口的內部名稱是不同的
             string internalNameST = "CEC-穿樑開口";
@@ -178,7 +221,8 @@ namespace BeamCasing_ButtonCreate
                 ElementCategoryFilter castCate_Filter = new ElementCategoryFilter(BuiltInCategory.OST_PipeAccessory);
                 ElementClassFilter castInst_Filter = new ElementClassFilter(typeof(Instance));
                 LogicalAndFilter andFilter = new LogicalAndFilter(castCate_Filter, castInst_Filter);
-                coll.WherePasses(andFilter).WhereElementIsNotElementType().ToElements(); //找出模型中實做的穿樑套管元件
+                ElementLevelFilter levelFilter = new ElementLevelFilter(le.Id);
+                coll.WherePasses(andFilter).WherePasses(levelFilter).WhereElementIsNotElementType().ToElements(); //找出模型中實做的穿樑套管元件
                 if (coll != null)
                 {
                     foreach (FamilyInstance e in coll)
@@ -232,47 +276,6 @@ namespace BeamCasing_ButtonCreate
             }
             return targetList;
         }
-        public Dictionary<Transform, List<FamilyInstance>> getLinkedCastDict(Document doc)
-        {
-            Dictionary<Transform, List<FamilyInstance>> linkCastBeamDict = new Dictionary<Transform, List<FamilyInstance>>();
-            List<RevitLinkInstance> linkedMEP_files = getMEPLinkInstance(doc);
-            //ElementLevelFilter levelFilter = new ElementLevelFilter(level.Id);
-            //針對所有在此檔案中的機電外參檔找尋套管
-            foreach (RevitLinkInstance linkInst in linkedMEP_files)
-            {
-                List<FamilyInstance> targetList = new List<FamilyInstance>();
-                Transform linkTrans = linkInst.GetTotalTransform();
-                Document linkDoc = linkInst.GetLinkDocument();
-                FilteredElementCollector linkCastCollector = new FilteredElementCollector(linkDoc).OfCategory(BuiltInCategory.OST_PipeAccessory).OfClass(typeof(Instance));
-                foreach (FamilyInstance inst in linkCastCollector)
-                {
-                    //針對checkName一定要確認是否為null，因為有些元件沒有此參數
-                    Parameter checkName = inst.Symbol.LookupParameter("API識別名稱");
-                    if (checkName != null && checkName.AsString().Contains("CEC-穿樑"))
-                    {
-                        targetList.Add(inst);
-                    }
-                }
-                //MessageBox.Show($"外參檔名：{linkDoc.Title}的檔案中有{targetList.Count.ToString()}個套管");
-                //如果有蒐集到套管
-                if (targetList.Count() > 0)
-                {
-                    if (!linkCastBeamDict.Keys.Contains(linkTrans))
-                    {
-                        linkCastBeamDict.Add(linkTrans, targetList);
-                    }
-                    else if (linkCastBeamDict.Keys.Contains(linkTrans))
-                    {
-                        //continue;
-                        foreach (FamilyInstance inst in targetList)
-                        {
-                            linkCastBeamDict[linkTrans].Add(inst);
-                        }
-                    }
-                }
-            }
-            return linkCastBeamDict;
-        }
         public static XYZ TransformPoint(XYZ point, Transform transform)
         {
             double x = point.X;
@@ -293,9 +296,10 @@ namespace BeamCasing_ButtonCreate
 
             return new XYZ(xTemp, yTemp, zTemp);
         }
-        public bool InstanceExist(Document document, XYZ point)
+        public bool InstanceExistByLevel(Document document, XYZ point,Level localLevel)
         {
-            FilteredElementCollector filteredElementCollector = new FilteredElementCollector(document).OfClass(typeof(FamilyInstance)).OfCategory(BuiltInCategory.OST_PipeAccessory);
+            ElementLevelFilter levelFilter = new ElementLevelFilter(localLevel.Id);
+            FilteredElementCollector filteredElementCollector = new FilteredElementCollector(document).OfClass(typeof(FamilyInstance)).OfCategory(BuiltInCategory.OST_PipeAccessory).WherePasses(levelFilter);
             List<FamilyInstance> targetList = new List<FamilyInstance>();
             foreach (FamilyInstance inst in filteredElementCollector)
             {
@@ -318,7 +322,7 @@ namespace BeamCasing_ButtonCreate
             }
             return false;
         }
-        public bool InstanceExistinLink(Document document, FamilyInstance cast)
+        public bool InstanceExistinLinkByLevel(Document document, FamilyInstance cast, Level localLevel)
         {
             //用既有的套管和外參中的套管檢查，如果名稱(Symbol)一樣，位置也一樣，則刪除
             //蒐集本機端的套管資訊
@@ -326,12 +330,12 @@ namespace BeamCasing_ButtonCreate
             LocationPoint castLocate = cast.Location as LocationPoint;
             XYZ castPt = castLocate.Point;
 
-            Dictionary<Transform, List<FamilyInstance>> linkCastDict = getLinkedCastDict(document);
+            Dictionary<Transform, List<FamilyInstance>> linkCastDict = getLinkedCastDictByLevel(document, localLevel);
             List<XYZ> linkCastLocateList = new List<XYZ>();
-            foreach(Transform trans in linkCastDict.Keys)
+            foreach (Transform trans in linkCastDict.Keys)
             {
                 List<FamilyInstance> instListLinked = linkCastDict[trans];
-                foreach(FamilyInstance inst in instListLinked)
+                foreach (FamilyInstance inst in instListLinked)
                 {
                     LocationPoint instLocate = inst.Location as LocationPoint;
                     XYZ instPt = instLocate.Point;
@@ -347,6 +351,12 @@ namespace BeamCasing_ButtonCreate
             }
             //false 表示在外參中沒有，但在實體檔中有，需要被刪掉
             return false;
+        }
+        public double sortLevelbyHeight(Element element)
+        {
+            Level tempLevel = element as Level;
+            double levelHeight = tempLevel.Elevation;
+            return levelHeight;
         }
     }
 }

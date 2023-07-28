@@ -73,6 +73,16 @@ namespace BeamCasing_ButtonCreate.Properties {
         /// <summary>
         ///   查詢類型 System.Drawing.Bitmap 的當地語系化資源。
         /// </summary>
+        internal static System.Drawing.Bitmap 根據視圖範圍更新穿樑資訊_ {
+            get {
+                object obj = ResourceManager.GetObject("根據視圖範圍更新穿樑資訊_", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   查詢類型 System.Drawing.Bitmap 的當地語系化資源。
+        /// </summary>
         internal static System.Drawing.Bitmap 穿樑原則示意修正_01 {
             get {
                 object obj = ResourceManager.GetObject("穿樑原則示意修正_01", resourceCulture);
@@ -143,9 +153,29 @@ namespace BeamCasing_ButtonCreate.Properties {
         /// <summary>
         ///   查詢類型 System.Drawing.Bitmap 的當地語系化資源。
         /// </summary>
+        internal static System.Drawing.Bitmap 穿樑套管ICON合集_RClink {
+            get {
+                object obj = ResourceManager.GetObject("穿樑套管ICON合集_RClink", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   查詢類型 System.Drawing.Bitmap 的當地語系化資源。
+        /// </summary>
         internal static System.Drawing.Bitmap 穿樑套管ICON合集_ST {
             get {
                 object obj = ResourceManager.GetObject("穿樑套管ICON合集_ST", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   查詢類型 System.Drawing.Bitmap 的當地語系化資源。
+        /// </summary>
+        internal static System.Drawing.Bitmap 穿樑套管ICON合集_STlink {
+            get {
+                object obj = ResourceManager.GetObject("穿樑套管ICON合集_STlink", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
             }
         }
@@ -163,9 +193,29 @@ namespace BeamCasing_ButtonCreate.Properties {
         /// <summary>
         ///   查詢類型 System.Drawing.Bitmap 的當地語系化資源。
         /// </summary>
+        internal static System.Drawing.Bitmap 穿樑套管ICON合集_多管開口link {
+            get {
+                object obj = ResourceManager.GetObject("穿樑套管ICON合集_多管開口link", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   查詢類型 System.Drawing.Bitmap 的當地語系化資源。
+        /// </summary>
         internal static System.Drawing.Bitmap 穿樑套管ICON合集_方形開口 {
             get {
                 object obj = ResourceManager.GetObject("穿樑套管ICON合集_方形開口", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   查詢類型 System.Drawing.Bitmap 的當地語系化資源。
+        /// </summary>
+        internal static System.Drawing.Bitmap 穿樑套管ICON合集_方形開口link {
+            get {
+                object obj = ResourceManager.GetObject("穿樑套管ICON合集_方形開口link", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
             }
         }

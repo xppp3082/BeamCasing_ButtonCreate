@@ -17,9 +17,14 @@ namespace BeamCasing_ButtonCreate
     [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     class UpdateCastNumber : IExternalCommand
     {
+#if RELEASE2019
+        public static DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
+#else
+        public static ForgeTypeId unitType = UnitTypeId.Millimeters;
+#endif
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-            DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
+            Counter.count += 1;
             try
             {
                 #region 邏輯解釋

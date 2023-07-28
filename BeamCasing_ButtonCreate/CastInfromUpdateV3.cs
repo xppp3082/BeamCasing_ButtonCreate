@@ -1,14 +1,14 @@
 ﻿#region Namespaces
-using Autodesk.Revit.ApplicationServices;
-using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using Autodesk.Revit.DB.Structure;
+using Autodesk.Revit.Attributes;
 using Autodesk.Revit.UI.Selection;
+using Autodesk.Revit.ApplicationServices;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using Autodesk.Revit.DB.Structure;
 using System.Windows.Forms;
 using System.Text;
 using System.IO;
@@ -19,15 +19,16 @@ namespace BeamCasing_ButtonCreate
     [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     class CastInfromUpdateV3 : IExternalCommand
     {
+#if RELEASE2019
+        public static DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
+#else
+        public static ForgeTypeId unitType = UnitTypeId.Millimeters;
+#endif
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();//引用stopwatch物件
             sw.Reset();//碼表歸零
             sw.Start();//碼表開始計時
-
-            //DisplayUnit unit = DisplayUnit.IMPERIAL;
-            DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
-
             try
             {
                 //程式要做四件事如下:

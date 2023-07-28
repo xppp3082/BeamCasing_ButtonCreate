@@ -20,6 +20,7 @@ namespace BeamCasing_ButtonCreate
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
+            Counter.count += 1;
             try
             {
                 UIApplication uiapp = commandData.Application;

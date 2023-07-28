@@ -13,7 +13,7 @@ using System.Windows.Forms;
 namespace BeamCasing_ButtonCreate
 {
     [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
-    class MultiBeamRectCast : IExternalCommand
+    public class MultiBeamRectCastLink : IExternalCommand
     {
 #if RELEASE2019
         public static DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
@@ -29,19 +29,9 @@ namespace BeamCasing_ButtonCreate
                 UIDocument uidoc = uiapp.ActiveUIDocument;
                 Autodesk.Revit.ApplicationServices.Application app = uiapp.Application;
                 Document doc = uidoc.Document;
-
-                //拿到管元件
-                ISelectionFilter pipeFilter = new PipeSelectionFilter(doc);
                 ISelectionFilter linkedPipeFilter = new linkedPipeSelectionFilter(doc);
-                ISelectionFilter linkedBeamFilter = new BeamsLinkedSelectedFilter(doc);
-                IList<Reference> pickPipeRefs = uidoc.Selection.PickObjects(ObjectType.Element, pipeFilter, "請選擇「本端模型」中貫穿樑的管");
+                IList<Reference> linkedPickPipeRefs = uidoc.Selection.PickObjects(ObjectType.LinkedElement, linkedPipeFilter, "請選擇「連結模型」中貫穿樑的管");
                 List<Element> pickPipes = new List<Element>();
-                foreach (Reference refer in pickPipeRefs)
-                {
-                    Element tempPipe = doc.GetElement(refer);
-                    pickPipes.Add(tempPipe);
-                }
-                IList<Reference> linkedPickPipeRefs = uidoc.Selection.PickObjects(ObjectType.LinkedElement, linkedPipeFilter, "請選擇「連結模型」中貫穿樑的管(選填)");
                 foreach (Reference refer in linkedPickPipeRefs)
                 {
                     RevitLinkInstance pipeLinkedInst = doc.GetElement(refer.ElementId) as RevitLinkInstance;
@@ -51,6 +41,7 @@ namespace BeamCasing_ButtonCreate
                 }
 
                 //拿到樑外參與Transform
+                ISelectionFilter linkedBeamFilter= new BeamsLinkedSelectedFilter(doc);
                 Reference pickBeamRef = uidoc.Selection.PickObject(ObjectType.LinkedElement, linkedBeamFilter, "請選擇「連結模型」中被貫穿的樑");
                 RevitLinkInstance pickBeam = doc.GetElement(pickBeamRef) as RevitLinkInstance;
                 Transform linkTransform = pickBeam.GetTotalTransform();
@@ -75,28 +66,47 @@ namespace BeamCasing_ButtonCreate
                 SolidCurveIntersection intersect = beamSolid.IntersectWithCurve(pipeCurve, option);
                 if (intersect.SegmentCount == 0)
                 {
-                    MessageBox.Show("本機端管並未和樑交集，請重新選擇");
+                    MessageBox.Show("管並未和樑交集，請重新選擇");
                     return Result.Failed;
                 }
                 if (level == null)
                 {
-                    MessageBox.Show("請至少選擇一支本機端管");
+                    MessageBox.Show("請檢查管的參考樓層");
                     return Result.Failed;
                 }
                 double holeLength = UnitUtils.ConvertFromInternalUnits(intersect.GetCurveSegment(0).Length, unitType) + 20;
-
+                //抓到模型中所有的樓層元素，依照樓高排序。要找到位於他上方的樓層
                 FilteredElementCollector levelCollector = new FilteredElementCollector(doc);
                 ElementFilter level_Filter = new ElementCategoryFilter(BuiltInCategory.OST_Levels);
                 levelCollector.WherePasses(level_Filter).WhereElementIsNotElementType().ToElements();
+
                 List<string> levelNames = new List<string>();
+                Level lowLevel = null; //管在的樓層為下樓層
+                if (lowLevel == null)
+                {
+                    string LevelName = pipeCrv.ReferenceLevel.Name;
+                    FilteredElementCollector levelFilter = new FilteredElementCollector(doc).OfClass(typeof(Level));
+                    foreach (Level le in levelFilter)
+                    {
+                        if (le.Name == LevelName)
+                        {
+                            lowLevel = le;
+                        }
+                    }
+                }
+                else
+                {
+                    MessageBox.Show("請確認「連結模型」中的樓層命名原則是否和本機端一致");
+                    return Result.Failed;
+                }
                 List<Element> level_List = levelCollector.OrderBy(x => sortLevelbyHeight(x)).ToList();
+
                 for (int i = 0; i < level_List.Count(); i++)
                 {
                     Level le = level_List[i] as Level;
                     levelNames.Add(le.Name);
                 }
-                //利用index反查樓層位置，就可以用此方式反推他的上一個樓層
-                int index_lowLevel = levelNames.IndexOf(level.Name);
+                int index_lowLevel = levelNames.IndexOf(lowLevel.Name);
                 int index_topLevel = index_lowLevel + 1;
                 Level topLevel = null;
                 if (index_topLevel < level_List.Count())
@@ -159,7 +169,6 @@ namespace BeamCasing_ButtonCreate
                 XYZ widthPt2 = intersectWidth.Last();
                 XYZ heightPt1 = intersectHeight.First();
                 XYZ heightPt2 = intersectHeight.Last();
-                //XYZ targetPt = new XYZ((widthPt1.X + widthPt2.X) / 2, (widthPt1.Y + widthPt2.Y) / 2, (heightPt1.Z + heightPt2.Z) / 2 - elevation);
                 XYZ targetPt = new XYZ((widthPt1.X + widthPt2.X) / 2, (widthPt1.Y + widthPt2.Y) / 2, (heightPt1.Z + heightPt2.Z) / 2);
                 double offsetToSet = (heightPt1.Z + heightPt2.Z) / 2 - elevation;
 
@@ -171,6 +180,7 @@ namespace BeamCasing_ButtonCreate
                     Beam_Cast = new RectBeamCast().BeamCastFamily(doc);
                     tx.Commit();
                 }
+
 
                 using (TransactionGroup transactionGroup = new TransactionGroup(doc))
                 {
@@ -208,7 +218,7 @@ namespace BeamCasing_ButtonCreate
                         //調整最終高度
                         double castDiameter = castHeight / 2;
 #if RELEASE2019
-                                instance.LookupParameter("偏移").Set(offsetToSet + castDiameter);
+                        instance.LookupParameter("偏移").Set(offsetToSet + castDiameter);
 #else
                         instance.get_Parameter(BuiltInParameter.FLOOR_HEIGHTABOVELEVEL_PARAM).Set(offsetToSet + castDiameter);
 #endif
@@ -270,34 +280,6 @@ namespace BeamCasing_ButtonCreate
                 return Result.Failed;
             }
             return Result.Succeeded;
-        }
-
-        public static XYZ TransformPoint(XYZ point, Transform transform)
-        {
-            double x = point.X;
-            double y = point.Y;
-            double z = point.Z;
-            XYZ val = transform.get_Basis(0);
-            XYZ val2 = transform.get_Basis(1);
-            XYZ val3 = transform.get_Basis(2);
-            XYZ origin = transform.Origin;
-            double xTemp = x * val.X + y * val2.X + z * val3.X + origin.X;
-            double yTemp = x * val.Y + y * val2.Y + z * val3.Y + origin.Y;
-            double zTemp = x * val.Z + y * val2.Z + z * val3.Z + origin.Z;
-            return new XYZ(xTemp, yTemp, zTemp);
-        }
-        public bool checkPara(Element elem, string paraName)
-        {
-            bool result = false;
-            foreach (Parameter parameter in elem.Parameters)
-            {
-                Parameter val = parameter;
-                if (val.Definition.Name == paraName)
-                {
-                    result = true;
-                }
-            }
-            return result;
         }
         public double sortLevelbyHeight(Element element)
         {
@@ -374,6 +356,34 @@ namespace BeamCasing_ButtonCreate
             }
             return solidResult;
         }
+        public bool checkPara(Element elem, string paraName)
+        {
+            bool result = false;
+            foreach (Parameter parameter in elem.Parameters)
+            {
+                Parameter val = parameter;
+                if (val.Definition.Name == paraName)
+                {
+                    result = true;
+                }
+            }
+            return result;
+        }
+        public static XYZ TransformPoint(XYZ point, Transform transform)
+        {
+            double x = point.X;
+            double y = point.Y;
+            double z = point.Z;
+            XYZ val = transform.get_Basis(0);
+            XYZ val2 = transform.get_Basis(1);
+            XYZ val3 = transform.get_Basis(2);
+            XYZ origin = transform.Origin;
+            double xTemp = x * val.X + y * val2.X + z * val3.X + origin.X;
+            double yTemp = x * val.Y + y * val2.Y + z * val3.Y + origin.Y;
+            double zTemp = x * val.Z + y * val2.Z + z * val3.Z + origin.Z;
+            return new XYZ(xTemp, yTemp, zTemp);
+        }
+
         public XYZ GetHoleLocation(Element wallElem, Element pipeElem, Transform trans)
         {
 

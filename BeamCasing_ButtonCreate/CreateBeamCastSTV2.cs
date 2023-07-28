@@ -18,19 +18,23 @@ namespace BeamCasing_ButtonCreate
     [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     class CreateBeamCastSTV2 : IExternalCommand
     {
+#if RELEASE2019
         public static DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
+#else
+        public static ForgeTypeId unitType = UnitTypeId.Millimeters;
+#endif
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
+            UIApplication uiapp = commandData.Application;
+            Autodesk.Revit.ApplicationServices.Application app = uiapp.Application;
+            UIDocument uidoc = commandData.Application.ActiveUIDocument;
+            Document doc = uidoc.Document;
             //先設置要進行轉換的單位
             while (true)
             {
+                Counter.count += 1;
                 try
                 {
-                    UIApplication uiapp = commandData.Application;
-                    Autodesk.Revit.ApplicationServices.Application app = uiapp.Application;
-                    UIDocument uidoc = commandData.Application.ActiveUIDocument;
-                    Document doc = uidoc.Document;
-
                     #region 蒐集管與外參樑，關係為多管對一樑
                     //點選要放置穿樑套管的管段
                     List<Element> pickPipes = new List<Element>();//創建一個容器放置管段
@@ -49,7 +53,7 @@ namespace BeamCasing_ButtonCreate
                     //點選要取交集的外參樑
                     //List<Element> pickBeams = new List<Element>(); //選取一個容器放置外參樑
                     //List<Transform> beamTransfroms = new List<Transform>();
-                    ISelectionFilter beamFilter = new BeamsLinkedSelectedFilter(doc);
+                    ISelectionFilter beamFilter = new BeamsLinkedSelectedFilterST(doc);
                     //IList<Reference> refElems_Linked = uidoc.Selection.PickObjects(ObjectType.LinkedElement, beamFilter, $"請選擇穿過的樑，可多選");
                     //foreach (Reference refer in refElems_Linked)
                     //{
@@ -79,7 +83,7 @@ namespace BeamCasing_ButtonCreate
                     {
                         tx.Start("載入檔案測試");
 
-                        RC_Cast = new BeamCast().BeamCastSymbol(doc);
+                        RC_Cast = new BeamCastST().BeamCastSymbol(doc);
                         tx.Commit();
                     }
 
@@ -126,11 +130,6 @@ namespace BeamCasing_ButtonCreate
                     using (Transaction trans = new Transaction(doc))
                     {
                         trans.Start("放置穿樑套管");
-                        //int a = 0;
-                        //foreach (Element e in pickBeams)
-                        //{
-                        //Transform tempTrans = beamTransfroms[a]
-                        //a = a + 1;
                         Solid solid = singleSolidFromElement(pickBeam);
                         solid = SolidUtils.CreateTransformed(solid, linkTransform);
                         if (null != solid)
@@ -153,7 +152,7 @@ namespace BeamCasing_ButtonCreate
                                 XYZ tempCenter = tempCurve.Evaluate(0.5, true);
                                 double tempStart = tempCurve.GetEndPoint(0).Z;
                                 double tempEnd = tempCurve.GetEndPoint(1).Z;
-                                FamilySymbol CastSymbol2 = new BeamCast().findRC_CastSymbol(doc, RC_Cast, pickPipe);
+                                FamilySymbol CastSymbol2 = new BeamCastST().findCastSymbol(doc, RC_Cast, pickPipe);
 
 
                                 instance = doc.Create.NewFamilyInstance(tempCenter, CastSymbol2, topLevel, StructuralType.NonStructural);
@@ -172,22 +171,19 @@ namespace BeamCasing_ButtonCreate
                                     }
                                 }
 
-
-
-
                                 //調整長度與高度
                                 Parameter beamWidth = getBeamWidthPara(pickBeam);
-                                instance.LookupParameter("開口長").Set(beamWidth.AsDouble() + 2 / 30.48) ;
-                                //instance.LookupParameter("L").Set(intersection.GetCurveSegment(i).Length + 2 / 30.48); //套管前後加兩公分
+                                double beamWidth2 = getBeamWidth(pickBeam);
+                                instance.LookupParameter("開口長").Set(beamWidth2 + 2 / 30.48);
                                 double floorHeight = topLevel.ProjectElevation - lowLevel.ProjectElevation;
                                 double adjust = instance.LookupParameter("管外半徑").AsDouble();
                                 double toMove2 = tempCenter.Z - topLevel.ProjectElevation + adjust;
-                                //double toMove = tempCenter.Z-floorHeight + adjust;
-                                //double toMove = instance.LookupParameter("偏移").AsDouble() + adjust;
-                                //double toMove = pickPipe.LookupParameter("偏移").AsDouble() + adjust;
-                                double toMove = pickPipe.LookupParameter("偏移").AsDouble() - floorHeight + adjust;
+                                //double toMove = pickPipe.LookupParameter("偏移").AsDouble() - floorHeight + adjust;
+#if RELEASE2019
                                 instance.LookupParameter("偏移").Set(toMove2);
-
+#else
+                                instance.get_Parameter(BuiltInParameter.FLOOR_HEIGHTABOVELEVEL_PARAM).Set(toMove2);
+#endif
                                 //旋轉角度
                                 XYZ axisPt1 = new XYZ(tempCenter.X, tempCenter.Y, tempCenter.Z);
                                 XYZ axisPt2 = new XYZ(tempCenter.X, tempCenter.Y, tempCenter.Z + 1);
@@ -390,169 +386,14 @@ namespace BeamCasing_ButtonCreate
             return Result.Succeeded;
         }
 
-        class BeamCast
-        {
-            #region Class功能說明
-            //將穿樑套管設置為class，需要符合下列幾種功能
-            //1.先匯入我們目前所有的穿樑套管
-            //2.再來判斷選中的管徑與是否有穿過梁，以及穿過的樑種類
-            //3.如果有則利用穿過的部分為終點，創造穿樑套管與輸入長度
-            //public Family BeamCastSymbol(Element pipe, Document doc)
-            #endregion
 
-            //載入RC穿樑套管元件
-            public Family BeamCastSymbol(Document doc)
-            {
-                //尋找RC樑開口.rfa
-                string internalNameRC = "CEC-穿樑開口-圓";
-                //string RC_CastName = "穿樑套管共用參數_通用模型";
-                Family RC_CastType = null;
-                ElementFilter RC_CastCategoryFilter = new ElementCategoryFilter(BuiltInCategory.OST_PipeAccessory);
-                ElementFilter RC_CastSymbolFilter = new ElementClassFilter(typeof(FamilySymbol));
-
-                LogicalAndFilter andFilter = new LogicalAndFilter(RC_CastCategoryFilter, RC_CastSymbolFilter);
-                FilteredElementCollector RC_CastSymbol = new FilteredElementCollector(doc);
-                RC_CastSymbol = RC_CastSymbol.WherePasses(andFilter);//這地方有點怪，無法使用andFilter RC_CastSymbolFilter
-                bool symbolFound = false;
-                foreach (FamilySymbol e in RC_CastSymbol)
-                {
-                    Parameter p = e.LookupParameter("API識別名稱");
-                    if (p != null && p.AsString().Contains(internalNameRC))
-                    {
-                        symbolFound = true;
-                        RC_CastType = e.Family;
-                        break;
-                    }
-                }
-                if (!symbolFound)
-                {
-                    MessageBox.Show("尚未載入指定的穿樑套管元件!");
-                }
-
-                #region 若沒有找到元件，自己載入
-                ////如果沒有找到，則自己加載
-                //if (!symbolFound)
-                //{
-                //    string filePath = @"D:\Dropbox (CHC Group)\工作人生\組內專案\04.元件製作\穿樑套管\穿樑套管共用參數_通用模型.rfa";
-                //    Family family;
-                //    bool loadSuccess = doc.LoadFamily(filePath, out family);
-                //    if (loadSuccess)
-                //    {
-                //        RC_CastType = family;
-                //    }
-                //}
-                #endregion
-
-                return RC_CastType;
-            }
-
-            //根據不同的管徑，選擇不同的穿樑套管大小
-            public FamilySymbol findRC_CastSymbol(Document doc, Family CastFamily, Element element)
-            {
-                FamilySymbol targetFamilySymbol = null; //用來找目標familySymbol
-                //如果確定找到family後，針對不同得管選取不同的穿樑套管大小，以大兩吋為規則，如果有坡度則大三吋
-                Parameter targetPara = null;
-                //Pipe
-                if (element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM) != null)
-                {
-                    targetPara = element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM);
-                }
-                //Conduit
-                else if (element.get_Parameter(BuiltInParameter.RBS_CONDUIT_DIAMETER_PARAM) != null)
-                {
-                    targetPara = element.get_Parameter(BuiltInParameter.RBS_CONDUIT_DIAMETER_PARAM);
-                }
-                //Duct
-                else if (element.get_Parameter(BuiltInParameter.RBS_CURVE_DIAMETER_PARAM) != null)
-                {
-                    targetPara = element.get_Parameter(BuiltInParameter.RBS_CURVE_DIAMETER_PARAM);
-                }
-                else if (element.get_Parameter(BuiltInParameter.RBS_CURVE_WIDTH_PARAM) != null)
-                {
-                    targetPara = element.get_Parameter(BuiltInParameter.RBS_CURVE_WIDTH_PARAM);
-                }
-                //利用管徑(doubleType)來判斷
-                var covertUnit = UnitUtils.ConvertFromInternalUnits(targetPara.AsDouble(), unitType);
-                if (CastFamily != null)
-                {
-                    foreach (ElementId castId in CastFamily.GetFamilySymbolIds())
-                    {
-                        FamilySymbol tempSymbol = doc.GetElement(castId) as FamilySymbol;
-                        //if (targetPara.AsValueString() == "50 mm")
-                        if (covertUnit >= 50 && covertUnit < 65)
-                        {
-                            if (tempSymbol.Name == "80mm")
-                            {
-                                targetFamilySymbol = tempSymbol;
-                            }
-                        }
-                        //else if (targetPara.AsValueString() == "65 mm")
-                        else if (covertUnit >= 65 && covertUnit < 75)
-                        {
-                            if (tempSymbol.Name == "100mm")
-                            {
-                                targetFamilySymbol = tempSymbol;
-                            }
-                        }
-                        //多出關於電管的判斷
-                        //else if (targetPara.AsValueString() == "80 mm" || targetPara.AsValueString() == "82 mm" || targetPara.AsValueString() == "92 mm" || targetPara.AsValueString() == "75 mm")
-                        else if (covertUnit >= 75 && covertUnit <= 95)
-                        {
-                            if (tempSymbol.Name == "125mm")
-                            {
-                                targetFamilySymbol = tempSymbol;
-                            }
-                        }
-                        //else if (targetPara.AsValueString() == "100 mm" || targetPara.AsValueString() == "88 mm" || targetPara.AsValueString() == "104 mm")
-                        else if (covertUnit >= 100 && covertUnit <= 125)
-                        {
-                            if (tempSymbol.Name == "150mm")
-                            {
-                                targetFamilySymbol = tempSymbol;
-                            }
-                        }
-                        //else if (targetPara.AsValueString() == "125 mm")
-                        else if (covertUnit > 125 && covertUnit <= 150)
-                        {
-                            if (tempSymbol.Name == "200mm")
-                            {
-                                targetFamilySymbol = tempSymbol;
-                            }
-                        }
-                        else if (covertUnit >150 && covertUnit <= 200)
-                        {
-                            if (tempSymbol.Name == "250mm")
-                            {
-                                targetFamilySymbol = tempSymbol;
-                            }
-                        }
-                        else if (covertUnit > 200 )
-                        {
-                            if (tempSymbol.Name == "300mm")
-                            {
-                                targetFamilySymbol = tempSymbol;
-                            }
-                        }
-                        else
-                        {
-                            if (tempSymbol.Name == "80mm")
-                            {
-                                targetFamilySymbol = tempSymbol;
-                            }
-                        }
-                    }
-                }
-                targetFamilySymbol.Activate();
-                return targetFamilySymbol;
-            }
-        }
 
 
         //製作用來排序樓層的方法
         public double sortLevelbyHeight(Element element)
         {
             Level tempLevel = element as Level;
-            double levelHeight = element.LookupParameter("立面").AsDouble();
+            double levelHeight = tempLevel.Elevation;
             return levelHeight;
         }
         //建立管過濾器
@@ -571,32 +412,7 @@ namespace BeamCasing_ButtonCreate
                 return false;
             }
         }
-        //建立外參樑過濾器
-        public class BeamsLinkedSelectedFilter : ISelectionFilter
-        {
-            Autodesk.Revit.DB.Document doc = null;
 
-            public BeamsLinkedSelectedFilter(Document document)
-            {
-                doc = document;
-            }
-            public bool AllowElement(Element element)
-            {
-                return true;
-            }
-            public bool AllowReference(Reference reference, XYZ point)
-            {
-                RevitLinkInstance revitLinkInstance = doc.GetElement(reference) as RevitLinkInstance;
-                Autodesk.Revit.DB.Document docLink = revitLinkInstance.GetLinkDocument();
-                Element eBeamsLink = docLink.GetElement(reference.LinkedElementId);
-                FamilyInstance instSC = eBeamsLink as FamilyInstance;
-                if (eBeamsLink.Category.Name == "結構構架" && instSC.StructuralMaterialType.ToString() == "Steel")
-                {
-                    return true;
-                }
-                return false;
-            }
-        }
         public IList<Solid> GetTargetSolids(Element element)
         {
             List<Solid> solids = new List<Solid>();
@@ -721,6 +537,211 @@ namespace BeamCasing_ButtonCreate
                 MessageBox.Show("請檢察樑中的「寬度」參數是否有誤，無法更新套管長度!");
             }
             return targetPara;
+        }
+        public double getBeamWidth(Element beam)
+        {
+            FamilyInstance beamInst = beam as FamilyInstance;
+            FamilySymbol beamSymbol = beamInst.Symbol;
+            List<string> paraNameLst = new List<string>() { "樑寬度", "梁寬度", "樑寬", "梁寬", "寬度", "寬", "B", "W", "b" };
+            List<double> paraValue = new List<double>();
+            double targetValue = 0.0;
+            foreach (string st in paraNameLst)
+            {
+                Parameter tempPara = beamSymbol.LookupParameter(st);
+                if (tempPara != null && tempPara.AsDouble() != 0)
+                {
+                    paraValue.Add(tempPara.AsDouble());
+                }
+            }
+            targetValue = paraValue.Max();
+            if (targetValue == 0)
+            {
+                MessageBox.Show("請檢察樑中的「寬度」參數是否有誤，無法更新套管長度(或套管長不可為0)!");
+            }
+            return targetValue;
+        }
+    }
+    //建立外參樑過濾器
+    public class BeamsLinkedSelectedFilterST : ISelectionFilter
+    {
+        Autodesk.Revit.DB.Document doc = null;
+
+        public BeamsLinkedSelectedFilterST(Document document)
+        {
+            doc = document;
+        }
+        public bool AllowElement(Element element)
+        {
+            return true;
+        }
+        public bool AllowReference(Reference reference, XYZ point)
+        {
+            RevitLinkInstance revitLinkInstance = doc.GetElement(reference) as RevitLinkInstance;
+            Autodesk.Revit.DB.Document docLink = revitLinkInstance.GetLinkDocument();
+            Element eBeamsLink = docLink.GetElement(reference.LinkedElementId);
+            FamilyInstance instSC = eBeamsLink as FamilyInstance;
+            if (eBeamsLink.Category.Name == "結構構架" /*&& instSC.StructuralMaterialType.ToString() == "Steel"*/)
+            {
+                return true;
+            }
+            return false;
+        }
+    }
+    class BeamCastST
+    {
+        #region Class功能說明
+        //將穿樑套管設置為class，需要符合下列幾種功能
+        //1.先匯入我們目前所有的穿樑套管
+        //2.再來判斷選中的管徑與是否有穿過梁，以及穿過的樑種類
+        //3.如果有則利用穿過的部分為終點，創造穿樑套管與輸入長度
+        //public Family BeamCastSymbol(Element pipe, Document doc)
+        #endregion
+
+        //載入RC穿樑套管元件
+        public Family BeamCastSymbol(Document doc)
+        {
+            //尋找RC樑開口.rfa
+            string internalNameRC = "CEC-穿樑開口-圓";
+            //string RC_CastName = "穿樑套管共用參數_通用模型";
+            Family RC_CastType = null;
+            ElementFilter RC_CastCategoryFilter = new ElementCategoryFilter(BuiltInCategory.OST_PipeAccessory);
+            ElementFilter RC_CastSymbolFilter = new ElementClassFilter(typeof(FamilySymbol));
+
+            LogicalAndFilter andFilter = new LogicalAndFilter(RC_CastCategoryFilter, RC_CastSymbolFilter);
+            FilteredElementCollector RC_CastSymbol = new FilteredElementCollector(doc);
+            RC_CastSymbol = RC_CastSymbol.WherePasses(andFilter);//這地方有點怪，無法使用andFilter RC_CastSymbolFilter
+            bool symbolFound = false;
+            foreach (FamilySymbol e in RC_CastSymbol)
+            {
+                Parameter p = e.LookupParameter("API識別名稱");
+                if (p != null && p.AsString().Contains(internalNameRC))
+                {
+                    symbolFound = true;
+                    RC_CastType = e.Family;
+                    break;
+                }
+            }
+            if (!symbolFound)
+            {
+                MessageBox.Show("尚未載入指定的穿樑套管元件!");
+            }
+
+            #region 若沒有找到元件，自己載入
+            ////如果沒有找到，則自己加載
+            //if (!symbolFound)
+            //{
+            //    string filePath = @"D:\Dropbox (CHC Group)\工作人生\組內專案\04.元件製作\穿樑套管\穿樑套管共用參數_通用模型.rfa";
+            //    Family family;
+            //    bool loadSuccess = doc.LoadFamily(filePath, out family);
+            //    if (loadSuccess)
+            //    {
+            //        RC_CastType = family;
+            //    }
+            //}
+            #endregion
+
+            return RC_CastType;
+        }
+
+        //根據不同的管徑，選擇不同的穿樑套管大小
+        public FamilySymbol findCastSymbol(Document doc, Family CastFamily, Element element)
+        {
+#if RELEASE2019
+            DisplayUnitType unitType = DisplayUnitType.DUT_MILLIMETERS;
+#else
+ ForgeTypeId unitType = UnitTypeId.Millimeters;
+#endif
+            FamilySymbol targetFamilySymbol = null; //用來找目標familySymbol
+                                                    //如果確定找到family後，針對不同得管選取不同的穿樑套管大小，以大兩吋為規則，如果有坡度則大三吋
+            Parameter targetPara = null;
+            //Pipe
+            if (element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM) != null)
+            {
+                targetPara = element.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM);
+            }
+            //Conduit
+            else if (element.get_Parameter(BuiltInParameter.RBS_CONDUIT_DIAMETER_PARAM) != null)
+            {
+                targetPara = element.get_Parameter(BuiltInParameter.RBS_CONDUIT_DIAMETER_PARAM);
+            }
+            //Duct
+            else if (element.get_Parameter(BuiltInParameter.RBS_CURVE_DIAMETER_PARAM) != null)
+            {
+                targetPara = element.get_Parameter(BuiltInParameter.RBS_CURVE_DIAMETER_PARAM);
+            }
+            else if (element.get_Parameter(BuiltInParameter.RBS_CURVE_WIDTH_PARAM) != null)
+            {
+                targetPara = element.get_Parameter(BuiltInParameter.RBS_CURVE_WIDTH_PARAM);
+            }
+            //利用管徑(doubleType)來判斷
+            var covertUnit = UnitUtils.ConvertFromInternalUnits(targetPara.AsDouble(), unitType);
+            if (CastFamily != null)
+            {
+                foreach (ElementId castId in CastFamily.GetFamilySymbolIds())
+                {
+                    FamilySymbol tempSymbol = doc.GetElement(castId) as FamilySymbol;
+                    if (covertUnit >= 50 && covertUnit < 65)
+                    {
+                        if (tempSymbol.Name == "80mm")
+                        {
+                            targetFamilySymbol = tempSymbol;
+                        }
+                    }
+                    else if (covertUnit >= 65 && covertUnit < 75)
+                    {
+                        if (tempSymbol.Name == "100mm")
+                        {
+                            targetFamilySymbol = tempSymbol;
+                        }
+                    }
+                    //多出關於電管的判斷
+                    else if (covertUnit >= 75 && covertUnit <= 95)
+                    {
+                        if (tempSymbol.Name == "125mm")
+                        {
+                            targetFamilySymbol = tempSymbol;
+                        }
+                    }
+                    else if (covertUnit >= 100 && covertUnit <= 125)
+                    {
+                        if (tempSymbol.Name == "150mm")
+                        {
+                            targetFamilySymbol = tempSymbol;
+                        }
+                    }
+                    else if (covertUnit > 125 && covertUnit <= 150)
+                    {
+                        if (tempSymbol.Name == "200mm")
+                        {
+                            targetFamilySymbol = tempSymbol;
+                        }
+                    }
+                    else if (covertUnit > 150 && covertUnit <= 200)
+                    {
+                        if (tempSymbol.Name == "250mm")
+                        {
+                            targetFamilySymbol = tempSymbol;
+                        }
+                    }
+                    else if (covertUnit > 200)
+                    {
+                        if (tempSymbol.Name == "300mm")
+                        {
+                            targetFamilySymbol = tempSymbol;
+                        }
+                    }
+                    else
+                    {
+                        if (tempSymbol.Name == "80mm")
+                        {
+                            targetFamilySymbol = tempSymbol;
+                        }
+                    }
+                }
+            }
+            if (targetFamilySymbol == null) MessageBox.Show("請確認穿牆套管元件中是否有對應管徑之族群類型");
+            targetFamilySymbol.Activate();
+            return targetFamilySymbol;
         }
     }
 }
