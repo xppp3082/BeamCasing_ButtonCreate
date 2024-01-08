@@ -85,7 +85,6 @@ namespace BeamCasing_ButtonCreate
                         }
                     }
 
-
                     //檢查參數
                     foreach (FamilyInstance famInst in famList)
                     {
@@ -98,7 +97,6 @@ namespace BeamCasing_ButtonCreate
                             }
                         }
                     }
-
 
                     //更新穿樑套管參數
                     using (Transaction trans = new Transaction(doc))
@@ -121,29 +119,9 @@ namespace BeamCasing_ButtonCreate
                                 updateCastMaterial(doc.GetElement(tempId), castDict_New[tempId].rcBeamsList.First());
                             }
                             //更新穿樑套管資訊&內容
-                            //updateCastInst(doc.GetElement(tempId), castDict[tempId].First());
-                            //updateCastMaterial(doc.GetElement(tempId), castDict[tempId].First());
                             updateCastContent(doc, doc.GetElement(tempId));
                             //如果只有一支，以該支樑為準
                             //要想個辦法將每隻樑究竟是SC還是SRC構造分開，或許是將Dictionary的結構改成Class? 以此記下每隻套管干涉的對象，以及構造類型等等
-                            //if (castDict[tempId].Count == 1)
-                            //{
-                            //    modifyCastLen(doc.GetElement(tempId), castDict[tempId][0]);
-                            //}
-                            ////如果有兩支以上，表示其為SRC，以RC樑的外框為準
-                            //else if (castDict[tempId].Count > 1)
-                            //{
-                            //    modifyCastLen(doc.GetElement(tempId), castDict[tempId][1]);
-                            //}
-                            //改成新方法判斷要以誰的外層為主
-                            //if (castDict_New[tempId].isSRC != true)
-                            //{
-                            //    modifyCastLen(doc.GetElement(tempId), castDict_New[tempId].rcBeamsList[]);
-                            //}
-                            //else if (castDict_New[tempId].isSRC == true)
-                            //{
-
-                            //}
                             modifyCastLen(doc.GetElement(tempId), castDict_New[tempId].rcBeamsList[0]);
 
                             //以外參進行單位的更新進度顯示
@@ -167,7 +145,6 @@ namespace BeamCasing_ButtonCreate
                         trans.Commit();
                     }
                 }
-
             }
             catch
             {
@@ -264,65 +241,6 @@ namespace BeamCasing_ButtonCreate
             }
             return solidResult;
         }
-        public List<RevitLinkInstance> getRCLinkedInstances(Document doc)
-        {
-            List<RevitLinkInstance> RClinkedInstances = new List<RevitLinkInstance>();
-            ElementCategoryFilter linkedFileFilter = new ElementCategoryFilter(BuiltInCategory.OST_RvtLinks);
-            FilteredElementCollector linkedFileCollector = new FilteredElementCollector(doc).WherePasses(linkedFileFilter).WhereElementIsNotElementType();
-            if (linkedFileCollector.Count() > 0)
-            {
-                foreach (RevitLinkInstance linkedInst in linkedFileCollector)
-                {
-                    Document linkDoc = linkedInst.GetLinkDocument();
-                    if (linkDoc == null || !linkedInst.IsValidObject) continue;
-                    FilteredElementCollector linkedBeams = new FilteredElementCollector(linkDoc).OfClass(typeof(Instance)).OfCategory(BuiltInCategory.OST_StructuralFraming);
-                    foreach (Element e in linkedBeams)
-                    {
-                        FamilyInstance beamInstance = e as FamilyInstance;
-                        if (beamInstance.StructuralMaterialType.ToString() == "Concrete" && !RClinkedInstances.Contains(linkedInst))
-                        {
-                            //RCfile = linkDoc;
-                            RClinkedInstances.Add(linkedInst);
-                        }
-                    }
-                }
-            }
-            else if (linkedFileCollector.Count() == 0)
-            {
-                MessageBox.Show("模型中沒有實做的外參檔案");
-            }
-            return RClinkedInstances;
-        }
-        public List<RevitLinkInstance> getSCLinkedInstances(Document doc)
-        {
-            List<RevitLinkInstance> SClinkedInstances = new List<RevitLinkInstance>();
-            ElementCategoryFilter linkedFileFilter = new ElementCategoryFilter(BuiltInCategory.OST_RvtLinks);
-            FilteredElementCollector linkedFileCollector = new FilteredElementCollector(doc).WherePasses(linkedFileFilter).WhereElementIsNotElementType();
-            if (linkedFileCollector.Count() > 0)
-            {
-                foreach (RevitLinkInstance linkedInst in linkedFileCollector)
-                {
-                    Document linkDoc = linkedInst.GetLinkDocument();
-                    if (linkDoc == null || !linkedInst.IsValidObject) continue;
-                    FilteredElementCollector linkedBeams = new FilteredElementCollector(linkDoc).OfClass(typeof(Instance)).OfCategory(BuiltInCategory.OST_StructuralFraming);
-                    if (linkedBeams.Count() == 0) continue;
-                    foreach (Element e in linkedBeams)
-                    {
-                        FamilyInstance beamInstance = e as FamilyInstance;
-                        if (beamInstance.StructuralMaterialType.ToString() == "Steel" && !SClinkedInstances.Contains(linkedInst))
-                        {
-                            //RCfile = linkDoc;
-                            SClinkedInstances.Add(linkedInst);
-                        }
-                    }
-                }
-            }
-            else if (linkedFileCollector.Count() == 0)
-            {
-                MessageBox.Show("模型中沒有實做的外參檔案");
-            }
-            return SClinkedInstances;
-        }
         public List<RevitLinkInstance> getLinkedInstances(Document doc, string materialName)
         {
             List<RevitLinkInstance> targetLinkedInstances = new List<RevitLinkInstance>();
@@ -393,33 +311,6 @@ namespace BeamCasing_ButtonCreate
                 MessageBox.Show("找尋連結實體發生問題!");
             }
             return targetLinkInstance;
-        }
-        public Document getLinkedSCDoc(Document doc)
-        {
-            Document SCfile = null;
-            ElementCategoryFilter linkedFileFilter = new ElementCategoryFilter(BuiltInCategory.OST_RvtLinks);
-            FilteredElementCollector linkedFileCollector = new FilteredElementCollector(doc).WherePasses(linkedFileFilter).WhereElementIsNotElementType();
-            if (linkedFileCollector.Count() > 0)
-            {
-                foreach (RevitLinkInstance linkedInst in linkedFileCollector)
-                {
-                    Document linkDoc = linkedInst.GetLinkDocument();
-                    FilteredElementCollector linkedBeams = new FilteredElementCollector(linkDoc).OfClass(typeof(Instance)).OfCategory(BuiltInCategory.OST_StructuralFraming);
-                    foreach (Element e in linkedBeams)
-                    {
-                        FamilyInstance beamInstance = e as FamilyInstance;
-                        if (beamInstance.StructuralMaterialType.ToString() == "Steel")
-                        {
-                            SCfile = linkDoc;
-                        }
-                    }
-                }
-            }
-            else if (linkedFileCollector.Count() == 0)
-            {
-                MessageBox.Show("模型中沒有實做的外參檔案");
-            }
-            return SCfile;
         }
         public double getBeamWidth(Element beam)
         {
@@ -528,7 +419,6 @@ namespace BeamCasing_ButtonCreate
         //public Dictionary<ElementId, List<Element>> getCastBeamDict(Document doc)
         public Dictionary<ElementId, BeamOpening> getCastBeamDict(Document doc)
         {
-            Dictionary<ElementId, List<Element>> castBeamDict = new Dictionary<ElementId, List<Element>>();
             Dictionary<ElementId, BeamOpening> castBeamDict_New = new Dictionary<ElementId, BeamOpening>();
             try
             {
@@ -548,10 +438,6 @@ namespace BeamCasing_ButtonCreate
                         //將RC和ST的檔案分別與inst去做碰撞，取得有用效的樑，再用dictionary的key值判斷套管是否已經存在字典之中，有才進行執行
                         foreach (RevitLinkInstance SClinkedInst in SCLinkedInstance)
                         {
-                            //這個套管還沒有對應的樑(不在字典的key值中)才進行計算
-                            //if (!castBeamDict_New.Keys.Contains(inst.Id))
-                            //{
-
                             totalTransform = SClinkedInst.GetTotalTransform();
                             inverseTransform = totalTransform.Inverse;
                             FilteredElementCollector collectorSC = getAllLinkedBeam(SClinkedInst.GetLinkDocument());
@@ -581,10 +467,7 @@ namespace BeamCasing_ButtonCreate
                                 newCast.scLinkInstance = SClinkedInst;
                                 newCast.isSC = true;
                                 newCast.scBeamsList = tempList;
-                                //castBeamDict.Add(inst.Id, tempList);
                             }
-
-                            //}
                         }
                         //和SC沒撞出東西，再和RC撞，如果被撞到的套管ID已在字典Key裡，則略過(後來不能略過，因為需要RC外框來更新套管長度)
                         foreach (RevitLinkInstance RClinkedInst in RCLinkedInstance)
@@ -641,8 +524,6 @@ namespace BeamCasing_ButtonCreate
                                 if (newCast.isSC == true) newCast.isSRC = true;
                                 newCast.rcLinkInstance = RClinkedInst;
                                 newCast.rcBeamsList = tempList;
-                                //MessageBox.Show("YA");
-                                //castBeamDict.Add(inst.Id, targetList);
                             }
                         }
                         castBeamDict_New.Add(inst.Id, newCast);
@@ -1360,17 +1241,5 @@ namespace BeamCasing_ButtonCreate
             }
             return linkInstanceList;
         }
-    }
-    public class BeamOpening
-    {
-        public bool isSC;
-        public bool isSRC;
-        public string docName;
-        public RevitLinkInstance rcLinkInstance;
-        public RevitLinkInstance scLinkInstance;
-        public ElementId beamId;
-        public List<Element> scBeamsList;
-        public List<Element> rcBeamsList;
-        public double castWidth;
     }
 }

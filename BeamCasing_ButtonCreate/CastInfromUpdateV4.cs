@@ -104,24 +104,38 @@ namespace BeamCasing_ButtonCreate
                     //更新穿樑套管參數
                     using (Transaction trans = new Transaction(doc))
                     {
-                        Dictionary<ElementId, List<Element>> castDict = getCastBeamDict(doc);
+                        //Dictionary<ElementId, List<Element>> castDict = getCastBeamDict(doc);
+                        Dictionary<ElementId, BeamOpening> castDict_New = getCastBeamDict(doc);
                         trans.Start("更新關樑套管參數");
-                        foreach (ElementId tempId in castDict.Keys)
+                        foreach (ElementId tempId in castDict_New.Keys)
                         {
+                            ////更新穿樑套管資訊&內容
+                            //updateCastInst(doc.GetElement(tempId), castDict[tempId].First());
+                            //updateCastMaterial(doc.GetElement(tempId), castDict[tempId].First());
+                            //updateCastContent(doc, doc.GetElement(tempId));
+                            ////如果只有一支，以該支樑為準
+                            //if (castDict[tempId].Count == 1)
+                            //{
+                            //    modifyCastLen(doc.GetElement(tempId), castDict[tempId][0]);
+                            //}
+                            ////如果有兩支以上，表示其為SRC，以RC樑的外框為準
+                            //else if (castDict[tempId].Count > 1)
+                            //{
+                            //    modifyCastLen(doc.GetElement(tempId), castDict[tempId][1]);
+                            //}
+                            if (castDict_New[tempId].isSC == true)
+                            {
+                                updateCastInst(doc.GetElement(tempId), castDict_New[tempId].scBeamsList.First());
+                                updateCastMaterial(doc.GetElement(tempId), castDict_New[tempId].rcBeamsList.First());
+                            }
+                            else if (castDict_New[tempId].isSC != true)
+                            {
+                                updateCastInst(doc.GetElement(tempId), castDict_New[tempId].rcBeamsList.First());
+                                updateCastMaterial(doc.GetElement(tempId), castDict_New[tempId].rcBeamsList.First());
+                            }
                             //更新穿樑套管資訊&內容
-                            updateCastInst(doc.GetElement(tempId), castDict[tempId].First());
-                            updateCastMaterial(doc.GetElement(tempId), castDict[tempId].First());
                             updateCastContent(doc, doc.GetElement(tempId));
-                            //如果只有一支，以該支樑為準
-                            if (castDict[tempId].Count == 1)
-                            {
-                                modifyCastLen(doc.GetElement(tempId), castDict[tempId][0]);
-                            }
-                            //如果有兩支以上，表示其為SRC，以RC樑的外框為準
-                            else if (castDict[tempId].Count > 1)
-                            {
-                                modifyCastLen(doc.GetElement(tempId), castDict[tempId][1]);
-                            }
+                            modifyCastLen(doc.GetElement(tempId), castDict_New[tempId].rcBeamsList[0]);
                             //以外參進行單位的更新進度顯示
                             if (progressView.Update()) break;
                         }
@@ -130,7 +144,7 @@ namespace BeamCasing_ButtonCreate
                         List<FamilyInstance> famListUpdate = findTargetElements(doc);
                         foreach (FamilyInstance inst in famListUpdate)
                         {
-                            if (!castDict.Keys.Contains(inst.Id))
+                            if (!castDict_New.Keys.Contains(inst.Id))
                             {
                                 inst.LookupParameter("【原則】是否穿樑").Set("不符合");
                                 inst.LookupParameter("貫穿樑尺寸").Set("無尺寸");
@@ -501,10 +515,11 @@ namespace BeamCasing_ButtonCreate
         }
         //可以判斷樑中樑的程式-->用Dictionary裝穿樑套管以及與之對應的樑
         //因為樑與套管正常來說應該是一對一的關係，強制取得它們的關係(用套管ID反查干涉的樑)
-        public Dictionary<ElementId, List<Element>> getCastBeamDict(Document doc)
+        //public Dictionary<ElementId, List<Element>> getCastBeamDict(Document doc)
+        public Dictionary<ElementId, BeamOpening> getCastBeamDict(Document doc)
         {
-
-            Dictionary<ElementId, List<Element>> castBeamDict = new Dictionary<ElementId, List<Element>>();
+            Dictionary<ElementId, BeamOpening> castBeamDict_New = new Dictionary<ElementId, BeamOpening>();
+            //Dictionary<ElementId, List<Element>> castBeamDict = new Dictionary<ElementId, List<Element>>();
             try
             {
                 //要確定鋼構模型和RC結構模型是否有確實拆開
@@ -517,42 +532,46 @@ namespace BeamCasing_ButtonCreate
                 {
                     foreach (FamilyInstance inst in familyInstances)
                     {
+                        BeamOpening newCast = new BeamOpening();
                         //將RC和ST的檔案分別與inst去做碰撞，取得有用效的樑，再用dictionary的key值判斷套管是否已經存在字典之中，有才進行執行
                         foreach (RevitLinkInstance SClinkedInst in SCLinkedInstance)
                         {
                             //這個套管還沒有對應的樑(不在字典的key值中)才進行計算
-                            if (!castBeamDict.Keys.Contains(inst.Id))
+                            //if (!castBeamDict.Keys.Contains(inst.Id))
+                            //{
+                            totalTransform = SClinkedInst.GetTotalTransform();
+                            inverseTransform = totalTransform.Inverse;
+                            FilteredElementCollector collectorSC = getAllLinkedBeam(SClinkedInst.GetLinkDocument());
+                            Solid castSolid = singleSolidFromElement(inst);
+                            if (castSolid == null) continue;
+
+                            //座標變換，因為抓法的關係，要轉換成外參檔「原本」的座標
+                            castSolid = SolidUtils.CreateTransformed(castSolid, inverseTransform);
+                            BoundingBoxXYZ solidBounding = castSolid.GetBoundingBox();
+                            XYZ solidCenter = castSolid.ComputeCentroid();
+                            Transform newTrans = Transform.Identity;
+                            newTrans.Origin = solidCenter;
+                            Outline outLine = new Outline(newTrans.OfPoint(solidBounding.Min), newTrans.OfPoint(solidBounding.Max));
+
+                            #region 尚未轉換之前的抓法，如果座標有變換可能會有問題
+                            //BoundingBoxXYZ castBounding = inst.get_BoundingBox(null);
+                            //Transform t = castBounding.Transform;
+                            //Outline outLine = new Outline(t.OfPoint(castBounding.Min), t.OfPoint(castBounding.Max));
+                            ////Outline outLine = new Outline(castBounding.Min, castBounding.Max);
+                            #endregion
+                            BoundingBoxIntersectsFilter boundingBoxIntersectsFilter = new BoundingBoxIntersectsFilter(outLine);
+                            ElementIntersectsSolidFilter elementIntersectsSolidFilter = new ElementIntersectsSolidFilter(castSolid);
+                            collectorSC.WherePasses(boundingBoxIntersectsFilter).WherePasses(elementIntersectsSolidFilter);
+
+                            List<Element> tempList = collectorSC.ToList();
+                            if (tempList.Count > 0)
                             {
-                                totalTransform = SClinkedInst.GetTotalTransform();
-                                inverseTransform = totalTransform.Inverse;
-                                FilteredElementCollector collectorSC = getAllLinkedBeam(SClinkedInst.GetLinkDocument());
-                                Solid castSolid = singleSolidFromElement(inst);
-                                if (castSolid == null) continue;
-
-                                //座標變換，因為抓法的關係，要轉換成外參檔「原本」的座標
-                                castSolid = SolidUtils.CreateTransformed(castSolid, inverseTransform);
-                                BoundingBoxXYZ solidBounding = castSolid.GetBoundingBox();
-                                XYZ solidCenter = castSolid.ComputeCentroid();
-                                Transform newTrans = Transform.Identity;
-                                newTrans.Origin = solidCenter;
-                                Outline outLine = new Outline(newTrans.OfPoint(solidBounding.Min), newTrans.OfPoint(solidBounding.Max));
-
-                                #region 尚未轉換之前的抓法，如果座標有變換可能會有問題
-                                //BoundingBoxXYZ castBounding = inst.get_BoundingBox(null);
-                                //Transform t = castBounding.Transform;
-                                //Outline outLine = new Outline(t.OfPoint(castBounding.Min), t.OfPoint(castBounding.Max));
-                                ////Outline outLine = new Outline(castBounding.Min, castBounding.Max);
-                                #endregion
-                                BoundingBoxIntersectsFilter boundingBoxIntersectsFilter = new BoundingBoxIntersectsFilter(outLine);
-                                ElementIntersectsSolidFilter elementIntersectsSolidFilter = new ElementIntersectsSolidFilter(castSolid);
-                                collectorSC.WherePasses(boundingBoxIntersectsFilter).WherePasses(elementIntersectsSolidFilter);
-
-                                List<Element> tempList = collectorSC.ToList();
-                                if (tempList.Count > 0)
-                                {
-                                    castBeamDict.Add(inst.Id, tempList);
-                                }
+                                newCast.scLinkInstance = SClinkedInst;
+                                newCast.isSC = true;
+                                newCast.scBeamsList = tempList;
+                                //castBeamDict_New.Add(inst.Id, tempList);
                             }
+                            //}
                         }
                         //和SC沒撞出東西，再和RC撞，如果被撞到的套管ID已在字典Key裡，則略過(後來不能略過，因為需要RC外框來更新套管長度)
                         foreach (RevitLinkInstance RClinkedInst in RCLinkedInstance)
@@ -583,21 +602,30 @@ namespace BeamCasing_ButtonCreate
                             ElementIntersectsSolidFilter elementIntersectsSolidFilter = new ElementIntersectsSolidFilter(castSolid);
                             collectorSC.WherePasses(boundingBoxIntersectsFilter).WherePasses(elementIntersectsSolidFilter);
 
-                            List<Element> tempList = collectorSC.OrderByDescending(x=>calculateSolidVol(doc.GetElement(inst.Id),x,totalTransform)).ToList();
+                            List<Element> tempList = collectorSC.OrderByDescending(x => calculateSolidVol(doc.GetElement(inst.Id), x, totalTransform)).ToList();
+                            #region 原先作法，今將做法改為beamCast
                             //如果有蒐集到東西，而且在字典中尚未有此套管
-                            if (tempList.Count > 0 && !castBeamDict.Keys.Contains(inst.Id))
+                            //if (tempList.Count > 0 && !castBeamDict.Keys.Contains(inst.Id))
+                            //{
+                            //    castBeamDict.Add(inst.Id, tempList);
+                            //}
+                            ////如果有蒐集到東西，字典中已有此套管
+                            //else if (tempList.Count > 0 && castBeamDict.Keys.Contains(inst.Id))
+                            //{
+                            //    foreach (Element e in tempList)
+                            //    {
+                            //        castBeamDict[inst.Id].Add(e);
+                            //    }
+                            //}
+                            #endregion
+                            if (tempList.Count > 0)
                             {
-                                castBeamDict.Add(inst.Id, tempList);
-                            }
-                            //如果有蒐集到東西，字典中已有此套管
-                            else if (tempList.Count > 0 && castBeamDict.Keys.Contains(inst.Id))
-                            {
-                                foreach (Element e in tempList)
-                                {
-                                    castBeamDict[inst.Id].Add(e);
-                                }
+                                if (newCast.isSC == true) newCast.isSRC = true;
+                                newCast.rcLinkInstance = RClinkedInst;
+                                newCast.rcBeamsList = tempList;
                             }
                         }
+                        castBeamDict_New.Add(inst.Id, newCast);
                     }
                 }
             }
@@ -605,7 +633,7 @@ namespace BeamCasing_ButtonCreate
             {
                 MessageBox.Show("無法判斷套管與樑的關係!");
             }
-            return castBeamDict;
+            return castBeamDict_New;
         }
         public bool checkGrider(Element elem)
         {
@@ -736,7 +764,7 @@ namespace BeamCasing_ButtonCreate
                 {
                     errorOutput += $"注意，ID為 {elem.Id} 的套管被固定無法移動，請檢查是否為有意不想移動之元素!\n";
                 }
-               else if (!castPt.IsAlmostEqualTo(targetPoint) && elem.Pinned == false)
+                else if (!castPt.IsAlmostEqualTo(targetPoint) && elem.Pinned == false)
                 {
                     ElementTransformUtils.MoveElement(document, inst.Id, positionChange);
                     //再調整套管長度

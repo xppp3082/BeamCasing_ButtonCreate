@@ -145,6 +145,7 @@
     <Compile Include="CreateRectBeamCast.cs" />
     <Compile Include="CreateRectBeamCastLink.cs" />
     <Compile Include="ExcelLog.cs" />
+    <Compile Include="Method.cs" />
     <Compile Include="MultiBeamRectCast.cs" />
     <Compile Include="MultiBeamRectCastLink.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
