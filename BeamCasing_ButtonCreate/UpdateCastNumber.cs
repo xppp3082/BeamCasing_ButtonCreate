@@ -103,13 +103,14 @@ namespace BeamCasing_ButtonCreate
                     }
                     trans.Commit();
                 }
+                MessageBox.Show($"「{tempLevel.Name}」中的穿樑套管編號完畢!");
             }
             catch
             {
                 MessageBox.Show("執行失敗!");
                 return Result.Failed;
             }
-            MessageBox.Show($"「{tempLevel.Name}」中的穿樑套管編號完畢!");
+
             return Result.Succeeded;
         }
         public IList<Element> findAllLevel(Document doc)

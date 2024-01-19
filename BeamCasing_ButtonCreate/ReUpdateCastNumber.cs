@@ -39,7 +39,7 @@ namespace BeamCasing_ButtonCreate
                 {
                     using (Transaction trans = new Transaction(doc))
                     {
-                        trans.Start("穿樑套管自動邊號");
+                        trans.Start("穿樑套管自動編號號");
                         ViewPlan viewPlan = doc.ActiveView as ViewPlan;
                         if (viewPlan == null)
                         {
@@ -82,7 +82,7 @@ namespace BeamCasing_ButtonCreate
                         }
                         trans.Commit();
                     }
-                    MessageBox.Show("穿樑套管重新編號完畢!");
+                    MessageBox.Show($"「{tempLevel.Name}」中的穿樑套管重新編號完畢!");
                 }
                 else if (dialogResult == DialogResult.No)
                 {

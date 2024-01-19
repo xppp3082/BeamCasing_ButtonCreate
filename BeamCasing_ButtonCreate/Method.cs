@@ -16,6 +16,26 @@ namespace BeamCasing_ButtonCreate
 {
     class Method
     {
+        private XYZ TransformPoint(XYZ point, Transform transform)
+        {
+            double x = point.X;
+            double y = point.Y;
+            double z = point.Z;
+
+            //transform basis of the old coordinate system in the new coordinate // system
+            XYZ b0 = transform.get_Basis(0);
+            XYZ b1 = transform.get_Basis(1);
+            XYZ b2 = transform.get_Basis(2);
+            XYZ origin = transform.Origin;
+
+            //transform the origin of the old coordinate system in the new 
+            //coordinate system
+            double xTemp = x * b0.X + y * b1.X + z * b2.X + origin.X;
+            double yTemp = x * b0.Y + y * b1.Y + z * b2.Y + origin.Y;
+            double zTemp = x * b0.Z + y * b1.Z + z * b2.Z + origin.Z;
+
+            return new XYZ(xTemp, yTemp, zTemp);
+        }
     }
     public class BeamOpening
     {

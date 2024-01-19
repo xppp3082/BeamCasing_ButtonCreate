@@ -532,6 +532,7 @@ namespace BeamCasing_ButtonCreate
                 {
                     foreach (FamilyInstance inst in familyInstances)
                     {
+                        bool toAdd = false;
                         BeamOpening newCast = new BeamOpening();
                         //將RC和ST的檔案分別與inst去做碰撞，取得有用效的樑，再用dictionary的key值判斷套管是否已經存在字典之中，有才進行執行
                         foreach (RevitLinkInstance SClinkedInst in SCLinkedInstance)
@@ -564,6 +565,7 @@ namespace BeamCasing_ButtonCreate
                             collectorSC.WherePasses(boundingBoxIntersectsFilter).WherePasses(elementIntersectsSolidFilter);
 
                             List<Element> tempList = collectorSC.ToList();
+                            if (tempList.Count > 0) toAdd = true;
                             if (tempList.Count > 0)
                             {
                                 newCast.scLinkInstance = SClinkedInst;
@@ -603,6 +605,7 @@ namespace BeamCasing_ButtonCreate
                             collectorSC.WherePasses(boundingBoxIntersectsFilter).WherePasses(elementIntersectsSolidFilter);
 
                             List<Element> tempList = collectorSC.OrderByDescending(x => calculateSolidVol(doc.GetElement(inst.Id), x, totalTransform)).ToList();
+                            if (tempList.Count > 0) toAdd = true;
                             #region 原先作法，今將做法改為beamCast
                             //如果有蒐集到東西，而且在字典中尚未有此套管
                             //if (tempList.Count > 0 && !castBeamDict.Keys.Contains(inst.Id))
