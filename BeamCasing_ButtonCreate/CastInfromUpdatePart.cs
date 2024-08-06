@@ -519,6 +519,14 @@ namespace BeamCasing_ButtonCreate
             return castBeamDict_New;
 
         }
+        //BoundingBox外擴
+        public BoundingBoxXYZ ExtandBounding(BoundingBoxXYZ bounding, double extensionValue)
+        {
+            extensionValue = UnitUtils.ConvertToInternalUnits(extensionValue, unitType);
+            bounding.Max = new XYZ(bounding.Max.X + extensionValue, bounding.Max.Y + extensionValue, bounding.Max.Z + extensionValue);
+            bounding.Min = new XYZ(bounding.Min.X - extensionValue, bounding.Min.Y - extensionValue, bounding.Min.Z - extensionValue);
+            return bounding;
+        }
         public bool checkGrider(Element elem)
         {
             bool result = false;
